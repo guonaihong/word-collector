@@ -59,12 +59,22 @@ func main() {
 	mainWindow.Resize(fyne.NewSize(320, 280))
 	mainWindow.SetContent(buildUI())
 	loadState()
+	loadAnkiConfig()
 	setupSystemTray()
 
 	// Auto-install AnkiConnect plugin if not present
 	if msg := ensureAnkiConnect(); msg != "" {
 		fmt.Println("📦 " + msg)
 		showNotification("Word Collector", msg)
+	}
+
+	// First run: prompt user to select Anki deck
+	if !isAnkiConfigured() {
+		go func() {
+			// Wait a moment for window to appear
+			time.Sleep(500 * time.Millisecond)
+			showDeckSetupDialog()
+		}()
 	}
 
 	// Register global hotkeys (⌃⌥⌘W: collect, ⌃⌥⌘S: toggle)
@@ -133,6 +143,10 @@ func buildUI() *fyne.Container {
 		exec.Command("open", dir).Run()
 	})
 
+	settingsBtn := widget.NewButton("⚙ Settings", func() {
+		showDeckSetupDialog()
+	})
+
 	// 布局
 	content := container.NewVBox(
 		container.NewCenter(container.NewPadded(statusCard)),
@@ -140,7 +154,7 @@ func buildUI() *fyne.Container {
 		widget.NewSeparator(),
 		container.NewBorder(nil, nil, nil, container.NewHBox(pasteBtn, addBtn), wordEntry),
 		widget.NewSeparator(),
-		container.NewGridWithColumns(2, ankiBtn, folderBtn),
+		container.NewGridWithColumns(3, ankiBtn, folderBtn, settingsBtn),
 	)
 
 	return container.NewPadded(content)
@@ -323,14 +337,18 @@ func isAnkiConnectAvailable() bool {
 }
 
 func addToAnkiViaConnect(word, front, back string) error {
+	if !isAnkiConfigured() {
+		return fmt.Errorf("Anki not configured, please click ⚙ Settings")
+	}
+
 	reqBody := map[string]any{
 		"action":  "addNote",
 		"version": 6,
 		"params": map[string]any{
 			"note": map[string]any{
-				"deckName":  "Default",
-				"modelName": "Basic",
-				"fields":    map[string]string{"Front": front, "Back": back},
+				"deckName":  ankiConfig.DeckName,
+				"modelName": ankiConfig.ModelName,
+				"fields":    map[string]string{ankiConfig.FrontField: front, ankiConfig.BackField: back},
 				"tags":      []string{AnkiTag},
 				"options":   map[string]any{"allowDuplicate": false},
 			},

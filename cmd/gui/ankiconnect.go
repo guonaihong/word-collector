@@ -41,6 +41,13 @@ class Handler(BaseHTTPRequestHandler):
                 result = [d["name"] for d in mw.col.decks.all()]
             elif action == "modelNames":
                 result = [m["name"] for m in mw.col.models.all()]
+            elif action == "modelFieldNames":
+                model_name = params.get("modelName", "")
+                model = mw.col.models.by_name(model_name)
+                if model:
+                    result = [f["name"] for f in model["flds"]]
+                else:
+                    error = f"model not found: {model_name}"
             else:
                 error = f"unsupported action: {action}"
         except Exception as e:
