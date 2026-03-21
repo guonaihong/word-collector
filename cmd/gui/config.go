@@ -10,12 +10,18 @@ import (
 	"strings"
 )
 
-// AnkiConfig stores the user's Anki deck/model preferences
+// AnkiConfig stores the user's Anki deck/model preferences and translation settings
 type AnkiConfig struct {
 	DeckName   string `json:"deck_name"`
 	ModelName  string `json:"model_name"`
 	FrontField string `json:"front_field"`
 	BackField  string `json:"back_field"`
+
+	// Translation settings
+	TranslateSource string `json:"translate_source"` // "youdao" or "llm"
+	LLMEndpoint     string `json:"llm_endpoint"`     // e.g. https://api.moonshot.cn/v1
+	LLMAPIKey       string `json:"llm_api_key"`
+	LLMModel        string `json:"llm_model"` // e.g. moonshot-v1-8k
 }
 
 var ankiConfig *AnkiConfig

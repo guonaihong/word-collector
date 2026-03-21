@@ -9,45 +9,45 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
-// showDeckSetupDialog shows a dialog for the user to select Anki deck, model and fields
+// showDeckSetupDialog shows a settings window with Anki and Translation tabs
 func showDeckSetupDialog() {
-	// Ensure Anki is running and AnkiConnect is available
-	if !isAnkiConnectAvailable() {
-		dialog.ShowInformation("Anki 未连接",
-			"请先启动 Anki，然后点击 ⚙ 设置按钮配置牌组。\n\n"+
-				"AnkiConnect 插件已自动安装，\n重启 Anki 即可激活。",
-			mainWindow)
-		mainWindow.Show()
-		mainWindow.RequestFocus()
-		return
-	}
-
 	mainWindow.Show()
 	mainWindow.RequestFocus()
 
-	// Fetch deck names
+	settingsWindow := fyneApp.NewWindow("⚙ 设置")
+	settingsWindow.Resize(fyne.NewSize(480, 400))
+
+	ankiTab := buildAnkiTab(settingsWindow)
+	translateTab := buildTranslateTab(settingsWindow)
+
+	tabs := container.NewAppTabs(
+		container.NewTabItem("Anki", ankiTab),
+		container.NewTabItem("翻译", translateTab),
+	)
+
+	settingsWindow.SetContent(container.NewPadded(tabs))
+	settingsWindow.CenterOnScreen()
+	settingsWindow.Show()
+}
+
+// buildAnkiTab creates the Anki configuration tab
+func buildAnkiTab(win fyne.Window) fyne.CanvasObject {
+	if !isAnkiConnectAvailable() {
+		return container.NewCenter(
+			widget.NewLabel("请先启动 Anki，AnkiConnect 插件已自动安装。\n重启 Anki 后再配置。"),
+		)
+	}
+
 	decks, err := fetchDeckNames()
-	if err != nil {
-		dialog.ShowError(fmt.Errorf("获取牌组失败: %v", err), mainWindow)
-		return
-	}
-	if len(decks) == 0 {
-		dialog.ShowError(fmt.Errorf("Anki 中没有牌组"), mainWindow)
-		return
+	if err != nil || len(decks) == 0 {
+		return container.NewCenter(widget.NewLabel("获取牌组失败，请确认 Anki 已启动"))
 	}
 
-	// Fetch model names
 	models, err := fetchModelNames()
-	if err != nil {
-		dialog.ShowError(fmt.Errorf("获取模板失败: %v", err), mainWindow)
-		return
-	}
-	if len(models) == 0 {
-		dialog.ShowError(fmt.Errorf("Anki 中没有模板"), mainWindow)
-		return
+	if err != nil || len(models) == 0 {
+		return container.NewCenter(widget.NewLabel("获取模板失败，请确认 Anki 已启动"))
 	}
 
-	// Set defaults from current config or first available
 	selectedDeck := decks[0]
 	if ankiConfig.DeckName != "" {
 		for _, d := range decks {
@@ -68,10 +68,7 @@ func showDeckSetupDialog() {
 		}
 	}
 
-	// UI elements
-	deckSelect := widget.NewSelect(decks, func(s string) {
-		selectedDeck = s
-	})
+	deckSelect := widget.NewSelect(decks, func(s string) { selectedDeck = s })
 	deckSelect.SetSelected(selectedDeck)
 
 	modelSelect := widget.NewSelect(models, nil)
@@ -80,7 +77,6 @@ func showDeckSetupDialog() {
 
 	var selectedFront, selectedBack string
 
-	// When model changes, update field selects
 	updateFields := func(modelName string) {
 		fields, err := fetchModelFieldNames(modelName)
 		if err != nil || len(fields) == 0 {
@@ -93,7 +89,6 @@ func showDeckSetupDialog() {
 		frontFieldSelect.Options = fields
 		backFieldSelect.Options = fields
 
-		// Auto-select: first field = front, second field = back
 		if len(fields) >= 1 {
 			selectedFront = fields[0]
 			frontFieldSelect.SetSelected(fields[0])
@@ -103,7 +98,6 @@ func showDeckSetupDialog() {
 			backFieldSelect.SetSelected(fields[1])
 		}
 
-		// Restore from config if matching
 		if ankiConfig.FrontField != "" {
 			for _, f := range fields {
 				if f == ankiConfig.FrontField {
@@ -133,26 +127,16 @@ func showDeckSetupDialog() {
 	}
 	modelSelect.SetSelected(selectedModel)
 
-	// Build form
-	form := container.NewVBox(
-		widget.NewLabelWithStyle("Anki 设置", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
-		widget.NewSeparator(),
-		widget.NewLabel("牌组 (Deck):"),
-		deckSelect,
-		widget.NewLabel("模板 (Note Type):"),
-		modelSelect,
-		widget.NewLabel("正面字段 (Front):"),
-		frontFieldSelect,
-		widget.NewLabel("背面字段 (Back):"),
-		backFieldSelect,
+	form := widget.NewForm(
+		widget.NewFormItem("牌组", deckSelect),
+		widget.NewFormItem("模板", modelSelect),
+		widget.NewFormItem("正面字段", frontFieldSelect),
+		widget.NewFormItem("背面字段", backFieldSelect),
 	)
 
-	d := dialog.NewCustomConfirm("⚙ 配置 Anki", "保存", "取消", form, func(ok bool) {
-		if !ok {
-			return
-		}
+	saveBtn := widget.NewButton("保存", func() {
 		if selectedDeck == "" || selectedModel == "" || selectedFront == "" || selectedBack == "" {
-			dialog.ShowError(fmt.Errorf("请选择所有选项"), mainWindow)
+			dialog.ShowError(fmt.Errorf("请选择所有选项"), win)
 			return
 		}
 		ankiConfig.DeckName = selectedDeck
@@ -163,7 +147,119 @@ func showDeckSetupDialog() {
 		fmt.Printf("✅ Anki config saved: deck=%s, model=%s, front=%s, back=%s\n",
 			selectedDeck, selectedModel, selectedFront, selectedBack)
 		showNotification("Word Collector", "Anki 配置已保存: "+selectedDeck)
-	}, mainWindow)
-	d.Resize(fyne.NewSize(350, 400))
-	d.Show()
+	})
+	saveBtn.Importance = widget.HighImportance
+
+	return container.NewVBox(form, widget.NewSeparator(), saveBtn)
+}
+
+// buildTranslateTab creates the Translation/LLM configuration tab
+func buildTranslateTab(win fyne.Window) fyne.CanvasObject {
+	sourceOptions := []string{"有道词典", "LLM (Kimi/DeepSeek/...)"}
+	sourceSelect := widget.NewSelect(sourceOptions, nil)
+
+	// Map display name to config value
+	sourceMap := map[string]string{
+		"有道词典":                    "youdao",
+		"LLM (Kimi/DeepSeek/...)": "llm",
+	}
+	reverseMap := map[string]string{
+		"youdao": "有道词典",
+		"llm":    "LLM (Kimi/DeepSeek/...)",
+	}
+
+	// Restore current config
+	currentSource := ankiConfig.TranslateSource
+	if currentSource == "" {
+		currentSource = "youdao"
+	}
+	if display, ok := reverseMap[currentSource]; ok {
+		sourceSelect.SetSelected(display)
+	}
+
+	endpointEntry := widget.NewEntry()
+	endpointEntry.SetPlaceHolder("https://api.moonshot.cn/v1")
+	endpointEntry.SetText(ankiConfig.LLMEndpoint)
+
+	apiKeyEntry := widget.NewPasswordEntry()
+	apiKeyEntry.SetPlaceHolder("sk-...")
+	apiKeyEntry.SetText(ankiConfig.LLMAPIKey)
+
+	modelEntry := widget.NewEntry()
+	modelEntry.SetPlaceHolder("moonshot-v1-8k")
+	modelEntry.SetText(ankiConfig.LLMModel)
+
+	// Preset buttons for common providers
+	presets := container.NewGridWithColumns(4,
+		widget.NewButton("LM Studio", func() {
+			endpointEntry.SetText("http://localhost:1234/v1")
+			modelEntry.SetText("qwen/qwen3-30b-a3b-2507")
+			apiKeyEntry.SetText("lm-studio")
+		}),
+		widget.NewButton("Kimi", func() {
+			endpointEntry.SetText("https://api.moonshot.cn/v1")
+			modelEntry.SetText("moonshot-v1-8k")
+		}),
+		widget.NewButton("DeepSeek", func() {
+			endpointEntry.SetText("https://api.deepseek.com/v1")
+			modelEntry.SetText("deepseek-chat")
+		}),
+		widget.NewButton("OpenAI", func() {
+			endpointEntry.SetText("https://api.openai.com/v1")
+			modelEntry.SetText("gpt-4o-mini")
+		}),
+	)
+
+	llmForm := widget.NewForm(
+		widget.NewFormItem("API 地址", endpointEntry),
+		widget.NewFormItem("API Key", apiKeyEntry),
+		widget.NewFormItem("模型", modelEntry),
+	)
+
+	llmSection := container.NewVBox(
+		widget.NewLabelWithStyle("快速填充:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		presets,
+		widget.NewSeparator(),
+		llmForm,
+	)
+
+	// Show/hide LLM section based on source
+	llmSection.Hide()
+	if currentSource == "llm" {
+		llmSection.Show()
+	}
+
+	sourceSelect.OnChanged = func(s string) {
+		if sourceMap[s] == "llm" {
+			llmSection.Show()
+		} else {
+			llmSection.Hide()
+		}
+	}
+
+	mainForm := widget.NewForm(
+		widget.NewFormItem("翻译源", sourceSelect),
+	)
+
+	saveBtn := widget.NewButton("保存", func() {
+		selected := sourceSelect.Selected
+		ankiConfig.TranslateSource = sourceMap[selected]
+
+		if sourceMap[selected] == "llm" {
+			if endpointEntry.Text == "" || apiKeyEntry.Text == "" || modelEntry.Text == "" {
+				dialog.ShowError(fmt.Errorf("请填写完整的 LLM 配置"), win)
+				return
+			}
+			ankiConfig.LLMEndpoint = endpointEntry.Text
+			ankiConfig.LLMAPIKey = apiKeyEntry.Text
+			ankiConfig.LLMModel = modelEntry.Text
+		}
+
+		saveAnkiConfig()
+		fmt.Printf("✅ Translation config saved: source=%s\n", ankiConfig.TranslateSource)
+		showNotification("Word Collector", "翻译配置已保存: "+selected)
+	})
+	saveBtn.Importance = widget.HighImportance
+
+	return container.NewVBox(mainForm, llmSection, widget.NewSeparator(), saveBtn)
 }

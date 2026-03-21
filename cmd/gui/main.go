@@ -242,6 +242,15 @@ func addWord(word string) {
 
 func fetchTranslation(word string) *WordData {
 	result := &WordData{Word: word, Translation: ""}
+
+	// Use LLM if configured
+	if ankiConfig != nil && ankiConfig.TranslateSource == "llm" {
+		if data := translateLLM(word); data != nil && data.Translation != "" {
+			return data
+		}
+		// Fallback to Youdao if LLM fails
+	}
+
 	if data := translateYoudao(word); data != nil && data.Translation != "" {
 		return data
 	}
