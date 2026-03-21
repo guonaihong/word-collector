@@ -153,16 +153,18 @@ Word Collector $VERSION
 
 使用方法:
 - GUI 界面：直接打开 Word Collector 应用
-- 快捷键取词：配合 Hammerspoon 使用
+- 首次使用需授予辅助功能权限（系统设置 → 隐私与安全性 → 辅助功能）
+
+全局快捷键（GUI 内置，无需额外安装）:
+- ⌃⌥⌘W：选中单词后取词添加到 Anki
+- ⌃⌥⌘S：暂停/启用取词功能
 
 GUI 功能:
 - 输入单词添加到 Anki
 - 从剪贴板粘贴单词
 - 启用/暂停切换
 - 打开单词收集目录
-
-Hammerspoon 快捷键（需单独配置）:
-- ⌃⌘W：取词
+- ⚙ Settings 配置 Anki 牌组
 
 GitHub: https://github.com/guonaihong/word-collector
 EOF

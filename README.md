@@ -77,16 +77,6 @@ GUI 运行时自动注册全局快捷键，无需安装任何外部工具。
 ~/word-collector/word-collector
 ```
 
-### Hammerspoon（可选，备用方案）
-
-如果不想运行 GUI，也可以通过 Hammerspoon 配合 CLI 使用快捷键：
-
-```bash
-./restart.sh
-```
-
-此脚本会检查/安装 Hammerspoon、复制配置并重启。
-
 ## 项目结构
 
 ```
@@ -95,12 +85,11 @@ word-collector/
 │   ├── cli/main.go              # CLI 主程序
 │   └── gui/
 │       ├── main.go              # GUI 界面（Fyne）
-│       └── hotkey_darwin.go     # macOS 全局快捷键（CGO）
+│       ├── hotkey_darwin.go     # macOS 全局快捷键（CGO）
+│       ├── ankiconnect.go      # AnkiConnect 插件自动安装
+│       ├── config.go            # Anki 配置管理
+│       └── settings.go          # 设置对话框
 ├── build-dmg.sh                 # DMG 打包脚本
-├── restart.sh                   # Hammerspoon 重启脚本（可选）
-├── hammerspoon/                 # Hammerspoon 配置（可选）
-│   ├── word_collector.lua
-│   └── install.sh
 └── dist/
     ├── Word Collector.app       # 打包的应用
     └── WordCollector-*.dmg      # DMG 安装包
@@ -108,34 +97,29 @@ word-collector/
 
 ## Anki 配置
 
+GUI 版本：
+- **首次运行**时会弹出设置对话框，从 Anki 获取牌组/模板列表让你选择
+- 配置保存在 `~/.wordcollector_config.json`
+- 随时点击 **⚙ Settings** 按钮修改牌组
+- **标签**：word-collector
+- **导出文件**：`~/word-collector/anki_import.txt`（自动去重）
+
 CLI 版本默认使用：
 - **牌组**：系统默认
 - **模板**：问答题
 - **标签**：word-collector
-- **导出文件**：`~/word-collector/anki_import.txt`
 
-GUI 版本默认使用：
-- **牌组**：Default
-- **模板**：Basic
-- **标签**：word-collector
-- **导出文件**：`~/word-collector/anki_import.txt`
+如需修改 CLI 配置，请编辑 `cmd/cli/main.go` 中的常量。
 
-如需修改，请编辑 `cmd/cli/main.go` 或 `cmd/gui/main.go` 中的常量。
+### AnkiConnect 插件
 
-### AnkiConnect 插件（推荐）
-
-要实现一键自动导入 Anki，安装 AnkiConnect 插件：
-
-1. 打开 Anki → 工具 → 附加组件 → 获取插件
-2. 输入代码：`2055492159`
-3. 重启 Anki
+GUI 首次启动时会自动安装 AnkiConnect 插件，无需手动操作。安装后需重启 Anki 一次以激活插件。
 
 ## 依赖
 
 - Go 1.21+
 - [Fyne v2.4.3](https://fyne.io/)（GUI）
-- [Anki](https://apps.ankiweb.net/) + AnkiConnect 插件（可选）
-- [Hammerspoon](https://www.hammerspoon.org/)（可选，仅 CLI 快捷键方案需要）
+- [Anki](https://apps.ankiweb.net/)（AnkiConnect 插件自动安装）
 
 ## 故障排除
 
@@ -148,9 +132,10 @@ GUI 版本默认使用：
 
 ### 无法添加到 Anki
 
-1. 确认 Anki 已安装 AnkiConnect 插件
-2. 确认 Anki 正在运行
-3. 检查 AnkiConnect 地址：`http://localhost:8765`
+1. 确认 Anki 正在运行（按快捷键时会自动启动 Anki）
+2. 确认已通过 ⚙ Settings 按钮配置了正确的牌组和模板
+3. 检查 AnkiConnect 是否激活：`curl http://localhost:8765` 应返回 `AnkiConnect`
+4. 如 AnkiConnect 未激活，重启 Anki 一次
 
 ### GUI 无法启动
 
