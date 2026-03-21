@@ -25,17 +25,18 @@ func translateLLM(word string) *WordData {
 例句: 英文例句1 (中文翻译1)
 例句: 英文例句2 (中文翻译2)
 易混淆: word1 - 释义1 | word2 - 释义2
+记忆: 用词根拆解、谐音联想、字形联想、场景画面感、口诀等方式，帮助记住这个单词（可以多种方式组合，生动有趣）
 
 单词: %s`, word)
 
 	reqBody := map[string]any{
 		"model": ankiConfig.LLMModel,
 		"messages": []map[string]string{
-			{"role": "system", "content": "你是一个英语学习助手。返回音标、中文释义、常用例句（带中文翻译）和容易混淆的近义词/形近词。严格按用户要求的格式返回。"},
+			{"role": "system", "content": "你是一个英语学习助手。返回音标、中文释义、常用例句（带中文翻译）、容易混淆的近义词/形近词、以及记忆技巧（词根拆解、谐音联想、字形画面、口诀等，越生动有趣越好）。严格按用户要求的格式返回。"},
 			{"role": "user", "content": prompt},
 		},
 		"temperature": 0.3,
-		"max_tokens":  500,
+		"max_tokens":  800,
 	}
 
 	jsonBody, err := json.Marshal(reqBody)
@@ -112,6 +113,11 @@ func parseLLMResponse(word, content string) *WordData {
 			cf := strings.TrimSpace(trimPrefix(line, "易混淆"))
 			if cf != "" {
 				confusables = append(confusables, cf)
+			}
+		} else if strings.HasPrefix(line, "记忆:") || strings.HasPrefix(line, "记忆：") {
+			aid := strings.TrimSpace(trimPrefix(line, "记忆"))
+			if aid != "" {
+				data.MemoryAid = aid
 			}
 		}
 	}

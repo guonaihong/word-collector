@@ -33,6 +33,7 @@ type WordData struct {
 	Definition  string `json:"definition"`
 	Examples    string `json:"examples"`
 	Confusables string `json:"confusables"`
+	MemoryAid   string `json:"memory_aid"`
 }
 
 type AppState struct {
@@ -329,6 +330,9 @@ func generateAnkiCard(data *WordData) (string, string) {
 	}
 	if data.Confusables != "" {
 		back += fmt.Sprintf("<br><div style='color:#ff9800;font-size:0.9em;'>⚠️ 易混淆</div><div style='font-size:0.85em;'>%s</div>", data.Confusables)
+	}
+	if data.MemoryAid != "" {
+		back += fmt.Sprintf("<br><div style='color:#ab47bc;font-size:0.9em;'>💡 记忆技巧</div><div style='font-size:0.85em;'>%s</div>", data.MemoryAid)
 	}
 	return front, back
 }
