@@ -20,11 +20,14 @@ import threading
 from anki.notes import Note
 from aqt import mw
 
+PLUGIN_VERSION = "2.0"
+print(f"[WordCollector AnkiConnect v{PLUGIN_VERSION}] loaded")
+
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.end_headers()
-        self.wfile.write(b"AnkiConnect")
+        self.wfile.write(f"AnkiConnect v{PLUGIN_VERSION}".encode())
 
     def do_POST(self):
         length = int(self.headers.get("Content-Length", 0))
@@ -80,19 +83,40 @@ def add_note(params):
         did = deck["id"]
 
     note = Note(col, model)
-    note.model()["did"] = did
     for name, value in fields.items():
         if name in note:
             note[name] = value
     for tag in tags:
         note.tags.append(tag)
 
+    # Duplicate check: search for notes with same first field
     opts = note_params.get("options", {})
     if not opts.get("allowDuplicate", False):
-        if note.dupes():
-            raise Exception("cannot create note because it is a duplicate")
+        first_field_name = model["flds"][0]["name"] if model["flds"] else None
+        if first_field_name and first_field_name in fields:
+            first_val = fields[first_field_name].strip()
+            if first_val:
+                # Strip HTML tags for comparison
+                import re
+                clean = re.sub(r'<[^>]+>', '', first_val).strip()
+                if clean:
+                    existing = col.find_notes(f'"{clean}"')
+                    if existing:
+                        raise Exception("duplicate: note with same content already exists")
 
-    col.addNote(note)
+    # Monkey-patch dupes if missing (Anki 25.x removed it)
+    if not hasattr(note, 'dupes'):
+        note.dupes = lambda: []
+
+    # Try multiple API versions
+    try:
+        col.add_note(note, did)
+    except (AttributeError, TypeError):
+        try:
+            note.model()["did"] = did
+            col.addNote(note)
+        except Exception:
+            raise Exception("failed to add note - unsupported Anki version")
     col.save()
     return note.id
 
@@ -135,6 +159,9 @@ func installAnkiConnect() error {
 		return fmt.Errorf("create addon directory: %w", err)
 	}
 
+	// Clear pycache to force Anki to reload the updated plugin
+	os.RemoveAll(filepath.Join(addonDir, "__pycache__"))
+
 	initFile := filepath.Join(addonDir, "__init__.py")
 	if err := os.WriteFile(initFile, []byte(ankiConnectPlugin), 0644); err != nil {
 		return fmt.Errorf("write plugin: %w", err)
@@ -150,17 +177,18 @@ func installAnkiConnect() error {
 	return nil
 }
 
-// ensureAnkiConnect installs AnkiConnect if not present, returns status message
+// ensureAnkiConnect installs or updates AnkiConnect plugin, returns status message
 func ensureAnkiConnect() string {
-	if isAnkiConnectInstalled() {
-		return ""
-	}
+	wasInstalled := isAnkiConnectInstalled()
 
 	if err := installAnkiConnect(); err != nil {
 		return fmt.Sprintf("AnkiConnect install failed: %v", err)
 	}
 
-	return "AnkiConnect plugin installed! Please restart Anki to activate."
+	if !wasInstalled {
+		return "AnkiConnect plugin installed! Please restart Anki to activate."
+	}
+	return ""
 }
 
 // isAnkiRunning checks if Anki is currently running
