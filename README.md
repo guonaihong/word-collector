@@ -102,7 +102,7 @@ GUI 版本：
 - 配置保存在 `~/.wordcollector_config.json`
 - 随时点击 **⚙ Settings** 按钮修改牌组
 - **标签**：word-collector
-- **导出文件**：`~/word-collector/anki_import.txt`（自动去重）
+- **去重**：自动检查 Anki 中是否已存在相同单词
 
 CLI 版本默认使用：
 - **牌组**：系统默认
@@ -174,14 +174,6 @@ CGO_ENABLED=1 go build -ldflags="-s -w" -o word-collector-gui ./cmd/gui/
 
 # 格式化代码
 go fmt ./...
-```
-
-## 数据格式
-
-生成的 `anki_import.txt` 使用 Tab 分隔：
-
-```
-正面内容(英文+音标)\t背面内容(中文释义)\t标签
 ```
 
 ## License

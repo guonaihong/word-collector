@@ -23,8 +23,7 @@ import (
 )
 
 const (
-	AnkiTag    = "word-collector"
-	OutputFile = "~/word-collector/anki_import.txt"
+	AnkiTag = "word-collector"
 )
 
 type WordData struct {
@@ -208,16 +207,10 @@ func addWord(word string) {
 
 	front, back := generateAnkiCard(wordData)
 
-	// Always save to file as backup
-	saveToAnkiFile(front, back, wordData.Word)
-
-	// Try to add to Anki via AnkiConnect
-	addedToAnki := false
+	// Ensure AnkiConnect is available, launch Anki if needed
 	if !isAnkiConnectAvailable() {
-		// Launch Anki if not running and AnkiConnect is installed
 		if isAnkiConnectInstalled() && !isAnkiRunning() {
 			exec.Command("open", "-a", "Anki").Run()
-			// Wait for Anki + AnkiConnect to start (up to 8 seconds)
 			for i := 0; i < 16; i++ {
 				time.Sleep(500 * time.Millisecond)
 				if isAnkiConnectAvailable() {
@@ -227,28 +220,32 @@ func addWord(word string) {
 		}
 	}
 
-	if isAnkiConnectAvailable() {
-		if err := addToAnkiViaConnect(wordData.Word, front, back); err == nil {
-			addedToAnki = true
-		} else {
-			fmt.Printf("⚠️  AnkiConnect error: %v\n", err)
-		}
-	}
-
-	appState.WordCount++
-	updateStatus()
-	saveState()
-
 	preview := wordData.Translation
 	if len(preview) > 40 {
 		preview = preview[:40] + "..."
 	}
 
-	if addedToAnki {
-		showNotification("✅ "+wordData.Word, preview)
-	} else {
-		showNotification("📝 "+wordData.Word, preview+"\n(saved to file)")
+	if !isAnkiConnectAvailable() {
+		showNotification("⚠️ "+wordData.Word, "Anki 未连接，请启动 Anki")
+		return
 	}
+
+	err := addToAnkiViaConnect(wordData.Word, front, back)
+	if err != nil {
+		errMsg := err.Error()
+		if strings.Contains(errMsg, "duplicate") {
+			showNotification("⚠️ "+wordData.Word, "已存在，跳过")
+		} else {
+			fmt.Printf("⚠️  AnkiConnect error: %v\n", err)
+			showNotification("❌ "+wordData.Word, errMsg)
+		}
+		return
+	}
+
+	appState.WordCount++
+	updateStatus()
+	saveState()
+	showNotification("✅ "+wordData.Word, preview)
 }
 
 func fetchTranslation(word string) *WordData {
@@ -326,30 +323,6 @@ func generateAnkiCard(data *WordData) (string, string) {
 	front := fmt.Sprintf("%s<br><span style='color:#666;'>%s</span>", data.Word, data.Phonetic)
 	back := fmt.Sprintf("<b>%s</b>", data.Translation)
 	return front, back
-}
-
-func saveToAnkiFile(front, back, _ string) string {
-	outputFile := expandPath(OutputFile)
-	os.MkdirAll(filepath.Dir(outputFile), 0755)
-	line := fmt.Sprintf("%s\t%s\t%s\n", front, back, AnkiTag)
-
-	// Dedup: check if this front already exists in the file
-	if data, err := os.ReadFile(outputFile); err == nil {
-		for _, existing := range strings.Split(string(data), "\n") {
-			parts := strings.SplitN(existing, "\t", 2)
-			if len(parts) >= 1 && parts[0] == front {
-				return outputFile // already exists, skip
-			}
-		}
-	}
-
-	f, err := os.OpenFile(outputFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		return outputFile
-	}
-	defer f.Close()
-	f.WriteString(line)
-	return outputFile
 }
 
 func isAnkiConnectAvailable() bool {
