@@ -83,6 +83,34 @@ class Handler(BaseHTTPRequestHandler):
                 mw.col.remove_cards_and_orphaned_notes(card_ids)
                 mw.col.save()
                 result = True
+            elif action == "changeModel":
+                note_ids = params.get("notes", [])
+                new_model_name = params.get("modelName", "")
+                new_model = mw.col.models.by_name(new_model_name)
+                if not new_model:
+                    error = f"model not found: {new_model_name}"
+                else:
+                    res = {"count": 0, "error": None}
+                    import threading
+                    done_event = threading.Event()
+                    def do_change():
+                        try:
+                            for nid in note_ids:
+                                note = mw.col.get_note(nid)
+                                if note.mid != new_model["id"]:
+                                    fmap = {i: (i if i < len(new_model["flds"]) else 0) for i in range(len(note.keys()))}
+                                    mw.col.models.change(note.note_type(), [nid], new_model, fmap, None)
+                                    res["count"] += 1
+                            mw.col.save()
+                        except Exception as ex:
+                            res["error"] = str(ex)
+                        done_event.set()
+                    mw.taskman.run_on_main(do_change)
+                    done_event.wait(timeout=120)
+                    if res["error"]:
+                        error = res["error"]
+                    else:
+                        result = res["count"]
             else:
                 error = f"unsupported action: {action}"
         except Exception as e:
