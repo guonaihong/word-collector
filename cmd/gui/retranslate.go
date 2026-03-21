@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
-	"time"
+	"sync"
+	"sync/atomic"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
@@ -108,73 +109,90 @@ func showRetranslateDialog() {
 				return
 			}
 
-			// Process in batches of 10
-			updated := 0
-			skipped := 0
-			failed := 0
-			batchSize := 10
-
-			for i := 0; i < len(noteIDs); i += batchSize {
-				end := i + batchSize
-				if end > len(noteIDs) {
-					end = len(noteIDs)
-				}
-				batch := noteIDs[i:end]
-
-				notes, err := fetchNotesInfo(batch)
-				if err != nil {
-					appendLog(fmt.Sprintf("⚠️ 批量获取失败: %v", err))
-					failed += len(batch)
-					continue
-				}
-
-				for _, note := range notes {
-					frontVal, ok := note.Fields[frontField]
-					if !ok || frontVal == "" {
-						skipped++
-						continue
-					}
-
-					// Extract the word from front field (strip HTML)
-					word := stripHTML(frontVal)
-					if word == "" {
-						skipped++
-						continue
-					}
-
-					// Re-translate
-					wordData := fetchTranslation(word)
-					if wordData.Translation == "" || wordData.Translation == "[Add translation]" {
-						appendLog(fmt.Sprintf("⚠️ %s - 翻译失败", word))
-						failed++
-						continue
-					}
-
-					_, back := generateAnkiCard(wordData)
-
-					// Update the note
-					err := updateNoteField(note.NoteID, backField, back)
-					if err != nil {
-						appendLog(fmt.Sprintf("❌ %s - 更新失败: %v", word, err))
-						failed++
-						continue
-					}
-
-					updated++
-					appendLog(fmt.Sprintf("✅ %s → %s", word, wordData.Translation))
-
-					// Small delay to not overwhelm LLM
-					time.Sleep(100 * time.Millisecond)
-				}
-
-				progress := float64(end) / float64(len(noteIDs))
-				progressBar.SetValue(progress)
-				statusLabel.SetText(fmt.Sprintf("进度: %d/%d (更新: %d, 跳过: %d, 失败: %d)",
-					end, len(noteIDs), updated, skipped, failed))
+			// Fetch all notes info first
+			allNotes, err := fetchNotesInfo(noteIDs)
+			if err != nil {
+				statusLabel.SetText(fmt.Sprintf("❌ 获取笔记失败: %v", err))
+				return
 			}
 
+			// Filter valid notes
+			type noteTask struct {
+				note noteInfo
+				word string
+			}
+			var tasks []noteTask
+			skippedCount := 0
+			for _, note := range allNotes {
+				frontVal, ok := note.Fields[frontField]
+				if !ok || frontVal == "" {
+					skippedCount++
+					continue
+				}
+				word := stripHTML(frontVal)
+				if word == "" {
+					skippedCount++
+					continue
+				}
+				tasks = append(tasks, noteTask{note: note, word: word})
+			}
+
+			total := len(tasks)
+			appendLog(fmt.Sprintf("有效笔记: %d, 跳过: %d", total, skippedCount))
+
+			// Concurrent processing with 4 workers
+			var updated, failed, done int64
+			var mu sync.Mutex
+			var wg sync.WaitGroup
+			taskCh := make(chan noteTask, total)
+
+			for _, t := range tasks {
+				taskCh <- t
+			}
+			close(taskCh)
+
+			workers := 4
+			wg.Add(workers)
+			for w := 0; w < workers; w++ {
+				go func() {
+					defer wg.Done()
+					for t := range taskCh {
+						wordData := fetchTranslation(t.word)
+						if wordData.Translation == "" || wordData.Translation == "[Add translation]" {
+							atomic.AddInt64(&failed, 1)
+							atomic.AddInt64(&done, 1)
+							mu.Lock()
+							appendLog(fmt.Sprintf("⚠️ %s - 翻译失败", t.word))
+							mu.Unlock()
+							continue
+						}
+
+						_, back := generateAnkiCard(wordData)
+
+						if err := updateNoteField(t.note.NoteID, backField, back); err != nil {
+							atomic.AddInt64(&failed, 1)
+							atomic.AddInt64(&done, 1)
+							mu.Lock()
+							appendLog(fmt.Sprintf("❌ %s - 更新失败: %v", t.word, err))
+							mu.Unlock()
+							continue
+						}
+
+						atomic.AddInt64(&updated, 1)
+						cur := atomic.AddInt64(&done, 1)
+						mu.Lock()
+						appendLog(fmt.Sprintf("✅ %s → %s", t.word, wordData.Translation))
+						progressBar.SetValue(float64(cur) / float64(total))
+						statusLabel.SetText(fmt.Sprintf("进度: %d/%d (更新: %d, 失败: %d)",
+							cur, total, atomic.LoadInt64(&updated), atomic.LoadInt64(&failed)))
+						mu.Unlock()
+					}
+				}()
+			}
+			wg.Wait()
+
 			progressBar.SetValue(1)
-			statusLabel.SetText(fmt.Sprintf("✅ 完成！更新: %d, 跳过: %d, 失败: %d", updated, skipped, failed))
+			statusLabel.SetText(fmt.Sprintf("✅ 完成！更新: %d, 跳过: %d, 失败: %d", updated, skippedCount, failed))
 			appendLog(fmt.Sprintf("\n完成！共更新 %d 张卡片", updated))
 		}()
 	}
