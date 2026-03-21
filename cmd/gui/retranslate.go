@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
@@ -78,6 +79,7 @@ func showRetranslateDialog() {
 		statusLabel.SetText("正在获取卡片...")
 
 		go func() {
+			startTime := time.Now()
 			defer func() {
 				running = false
 				startBtn.Enable()
@@ -191,9 +193,10 @@ func showRetranslateDialog() {
 			}
 			wg.Wait()
 
+			elapsed := time.Since(startTime).Round(time.Millisecond)
 			progressBar.SetValue(1)
-			statusLabel.SetText(fmt.Sprintf("✅ 完成！更新: %d, 跳过: %d, 失败: %d", updated, skippedCount, failed))
-			appendLog(fmt.Sprintf("\n完成！共更新 %d 张卡片", updated))
+			statusLabel.SetText(fmt.Sprintf("✅ 完成！更新: %d, 跳过: %d, 失败: %d, 耗时: %s", updated, skippedCount, failed, elapsed))
+			appendLog(fmt.Sprintf("\n完成！共更新 %d 张卡片, 耗时 %s", updated, elapsed))
 		}()
 	}
 
