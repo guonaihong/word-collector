@@ -159,26 +159,23 @@ GUI 功能:
 - 输入单词添加到 Anki
 - 从剪贴板粘贴单词
 - 启用/暂停切换
-- 查看已收集单词列表
+- 打开单词收集目录
 
 Hammerspoon 快捷键（需单独配置）:
 - ⌃⌘W：取词
-- ⌃⌘S：暂停/启用
 
-GitHub: https://github.com/your-repo/word-collector
+GitHub: https://github.com/guonaihong/word-collector
 EOF
 
 # 删除旧的 DMG
 rm -f "$DMG_PATH"
 
 # 创建 DMG (使用 hdiutil)
-hdiutil create -volname "Word Collector" \
+if hdiutil create -volname "Word Collector" \
     -srcfolder "$DMG_TEMP" \
     -ov -format UDZO \
     -imagekey zlib-level=9 \
-    "$DMG_PATH"
-
-if [ $? -eq 0 ]; then
+    "$DMG_PATH"; then
     echo -e "${GREEN}✓ DMG 创建成功${NC}"
 else
     echo -e "${RED}❌ DMG 创建失败${NC}"

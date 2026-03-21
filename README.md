@@ -51,7 +51,7 @@ GUI 功能：
 | **单词输入框** | 输入单词后按回车添加 |
 | **粘贴按钮** | 从剪贴板粘贴单词 |
 | **打开 Anki** | 启动 Anki 应用 |
-| **查看列表** | 查看已收集的单词 |
+| **打开文件夹** | 打开单词收集目录 |
 | **系统托盘** | 关闭窗口后最小化到托盘 |
 
 ### 快捷键取词（配合 Hammerspoon）
@@ -69,11 +69,9 @@ GUI 功能：
 | 快捷键 | 功能 |
 |--------|------|
 | `⌃⌘W` | 取词添加 |
-| `⌃⌘S` | 暂停/启用 |
 
 **菜单栏图标**：
-- 📖 = 已启用
-- 📕 = 已暂停
+- 📖 = Word Collector 已加载
 
 ### CLI 命令行
 
@@ -101,7 +99,7 @@ GUI 功能：
 
 ```
 word-collector/
-├── main.go                 # CLI 主程序
+├── cmd/cli/main.go         # CLI 主程序
 ├── cmd/gui/main.go         # GUI 界面（Fyne）
 ├── build-dmg.sh            # DMG 打包脚本
 ├── restart.sh              # 重启服务脚本
@@ -115,13 +113,19 @@ word-collector/
 
 ## Anki 配置
 
-默认使用：
+CLI 版本默认使用：
 - **牌组**：系统默认
 - **模板**：问答题
 - **标签**：word-collector
 - **导出文件**：`~/word-collector/anki_import.txt`
 
-如需修改，请编辑 `main.go` 中的常量。
+GUI 版本默认使用：
+- **牌组**：Default
+- **模板**：Basic
+- **标签**：word-collector
+- **导出文件**：`~/word-collector/anki_import.txt`
+
+如需修改，请编辑 `cmd/cli/main.go` 或 `cmd/gui/main.go` 中的常量。
 
 ### AnkiConnect 插件（推荐）
 
@@ -143,7 +147,7 @@ word-collector/
 ### 快捷键不工作
 
 1. 检查 Hammerspoon 是否有辅助功能权限
-2. 点击菜单栏 📖 → 🧪 测试快捷键系统
+2. 点击菜单栏 📖 → Reload 重新加载配置
 3. 查看日志：`open -a Console`（搜索 WordCollector）
 
 ### 无法添加到 Anki
