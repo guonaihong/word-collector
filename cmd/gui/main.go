@@ -52,6 +52,21 @@ var (
 )
 
 func main() {
+	// Set Chinese-compatible font for Fyne (macOS system fonts)
+	if os.Getenv("FYNE_FONT") == "" {
+		fonts := []string{
+			"/Library/Fonts/Arial Unicode.ttf",
+			"/System/Library/Fonts/STHeiti Medium.ttc",
+			"/System/Library/Fonts/Supplemental/Songti.ttc",
+		}
+		for _, f := range fonts {
+			if _, err := os.Stat(f); err == nil {
+				os.Setenv("FYNE_FONT", f)
+				break
+			}
+		}
+	}
+
 	fyneApp = app.NewWithID("com.wordcollector.gui")
 	fyneApp.Settings().SetTheme(theme.DarkTheme())
 
@@ -317,6 +332,17 @@ func saveToAnkiFile(front, back, _ string) string {
 	outputFile := expandPath(OutputFile)
 	os.MkdirAll(filepath.Dir(outputFile), 0755)
 	line := fmt.Sprintf("%s\t%s\t%s\n", front, back, AnkiTag)
+
+	// Dedup: check if this front already exists in the file
+	if data, err := os.ReadFile(outputFile); err == nil {
+		for _, existing := range strings.Split(string(data), "\n") {
+			parts := strings.SplitN(existing, "\t", 2)
+			if len(parts) >= 1 && parts[0] == front {
+				return outputFile // already exists, skip
+			}
+		}
+	}
+
 	f, err := os.OpenFile(outputFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		return outputFile
