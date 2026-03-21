@@ -17,7 +17,6 @@ import (
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
@@ -62,7 +61,13 @@ func main() {
 	loadState()
 	setupSystemTray()
 
-	// Register global hotkeys (⌃⌘W: collect, ⌃⌘S: toggle)
+	// Auto-install AnkiConnect plugin if not present
+	if msg := ensureAnkiConnect(); msg != "" {
+		fmt.Println("📦 " + msg)
+		showNotification("Word Collector", msg)
+	}
+
+	// Register global hotkeys (⌃⌥⌘W: collect, ⌃⌥⌘S: toggle)
 	if err := setupGlobalHotkeys(); err != nil {
 		fmt.Printf("⚠️  Global hotkeys not available: %v\n", err)
 		fmt.Println("Tip: Grant accessibility permission in System Settings → Privacy & Security → Accessibility")
@@ -164,7 +169,6 @@ func updateStatus() {
 
 func addWord(word string) {
 	if !appState.IsEnabled {
-		dialog.ShowError(fmt.Errorf("paused"), mainWindow)
 		return
 	}
 
@@ -175,24 +179,46 @@ func addWord(word string) {
 
 	front, back := generateAnkiCard(wordData)
 
+	// Always save to file as backup
+	saveToAnkiFile(front, back, wordData.Word)
+
+	// Try to add to Anki via AnkiConnect
 	addedToAnki := false
-	if isAnkiConnectAvailable() {
-		if err := addToAnkiViaConnect(wordData.Word, front, back); err == nil {
-			addedToAnki = true
+	if !isAnkiConnectAvailable() {
+		// Launch Anki if not running and AnkiConnect is installed
+		if isAnkiConnectInstalled() && !isAnkiRunning() {
+			exec.Command("open", "-a", "Anki").Run()
+			// Wait for Anki + AnkiConnect to start (up to 8 seconds)
+			for i := 0; i < 16; i++ {
+				time.Sleep(500 * time.Millisecond)
+				if isAnkiConnectAvailable() {
+					break
+				}
+			}
 		}
 	}
 
-	saveToAnkiFile(front, back, wordData.Word)
+	if isAnkiConnectAvailable() {
+		if err := addToAnkiViaConnect(wordData.Word, front, back); err == nil {
+			addedToAnki = true
+		} else {
+			fmt.Printf("⚠️  AnkiConnect error: %v\n", err)
+		}
+	}
 
 	appState.WordCount++
 	updateStatus()
 	saveState()
 
-	msg := fmt.Sprintf("Word: %s\nTranslation: %s", wordData.Word, wordData.Translation)
+	preview := wordData.Translation
+	if len(preview) > 40 {
+		preview = preview[:40] + "..."
+	}
+
 	if addedToAnki {
-		showNotification("Added to Anki", msg)
+		showNotification("✅ "+wordData.Word, preview)
 	} else {
-		showNotification("Saved", msg)
+		showNotification("📝 "+wordData.Word, preview+"\n(saved to file)")
 	}
 }
 
