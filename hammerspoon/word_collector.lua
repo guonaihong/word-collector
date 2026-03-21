@@ -1,6 +1,6 @@
--- Word Collector - ⌃⌘W 取词
+-- Word Collector - ⌃⌥⌘W 取词
 local config = {
-    hotkeyMod = {"ctrl", "cmd"},
+    hotkeyMod = {"ctrl", "alt", "cmd"},
     hotkeyKey = "w",
     collectorPath = os.getenv("HOME") .. "/word-collector/word-collector",
 }
@@ -28,4 +28,4 @@ hs.menubar.new():setTitle("📖"):setMenu({
     {title = "Reload", fn = function() hs.reload() end},
 })
 
-hs.alert.show("📖 ⌃⌘W", 2)
+hs.alert.show("📖 ⌃⌥⌘W", 2)

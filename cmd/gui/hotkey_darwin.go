@@ -9,8 +9,8 @@ package main
 
 // Hotkey IDs
 enum {
-    kHotkeyCollect = 1,  // ⌃⌘W
-    kHotkeyToggle  = 2,  // ⌃⌘S
+    kHotkeyCollect = 1,  // ⌃⌥⌘W
+    kHotkeyToggle  = 2,  // ⌃⌥⌘S
 };
 
 // Go callback declarations
@@ -47,12 +47,12 @@ static int registerHotkeys() {
     EventHotKeyID collectID = {.signature = 'WCol', .id = kHotkeyCollect};
     EventHotKeyID toggleID  = {.signature = 'WCol', .id = kHotkeyToggle};
 
-    // ⌃⌘W: kVK_ANSI_W = 13, controlKey | cmdKey
-    OSStatus s1 = RegisterEventHotKey(13, controlKey | cmdKey, collectID,
+    // ⌃⌥⌘W: kVK_ANSI_W = 13, controlKey | optionKey | cmdKey
+    OSStatus s1 = RegisterEventHotKey(13, controlKey | optionKey | cmdKey, collectID,
         GetApplicationEventTarget(), 0, &gCollectHotKey);
 
-    // ⌃⌘S: kVK_ANSI_S = 1, controlKey | cmdKey
-    OSStatus s2 = RegisterEventHotKey(1, controlKey | cmdKey, toggleID,
+    // ⌃⌥⌘S: kVK_ANSI_S = 1, controlKey | optionKey | cmdKey
+    OSStatus s2 = RegisterEventHotKey(1, controlKey | optionKey | cmdKey, toggleID,
         GetApplicationEventTarget(), 0, &gToggleHotKey);
 
     if (s1 != noErr || s2 != noErr) {
@@ -126,7 +126,7 @@ func setupGlobalHotkeys() error {
 	if result != 0 {
 		return fmt.Errorf("failed to register global hotkeys (need accessibility permission?)")
 	}
-	fmt.Println("✅ Global hotkeys registered: ⌃⌘W (collect), ⌃⌘S (toggle)")
+	fmt.Println("✅ Global hotkeys registered: ⌃⌥⌘W (collect), ⌃⌥⌘S (toggle)")
 	return nil
 }
 
