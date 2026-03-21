@@ -1,0 +1,48 @@
+name: Build
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build-cli:
+    name: Build CLI
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        go-version: ['1.21']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - name: Build CLI
+        run: go build -v -ldflags="-s -w" -o word-collector ./cmd/cli/
+
+      - name: Go Vet
+        run: go vet ./...
+
+  build-gui:
+    name: Build GUI (macOS)
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        go-version: ['1.21']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - name: Build GUI
+        run: CGO_ENABLED=1 go build -v -ldflags="-s -w" -o word-collector-gui ./cmd/gui/

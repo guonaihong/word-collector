@@ -1,0 +1,47 @@
+# Compiled binaries
+word-collector
+word-collector-gui
+word-collector-manager
+word-collector-arm64
+word-collector-amd64
+
+# Build directories
+build/
+dist/
+
+# Data files
+anki_import.txt
+anki_export_*.txt
+
+# Archive folder
+archive/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+*.dmg
+
+# Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+vendor/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# State files
+.wordcollector_state.json
+
+# Claude
+.claude/
