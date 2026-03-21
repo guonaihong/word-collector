@@ -75,6 +75,14 @@ class Handler(BaseHTTPRequestHandler):
                 mw.col.update_note(note)
                 mw.col.save()
                 result = True
+            elif action == "findCards":
+                query = params.get("query", "")
+                result = list(mw.col.find_cards(query))
+            elif action == "deleteCards":
+                card_ids = params.get("cards", [])
+                mw.col.remove_cards_and_orphaned_notes(card_ids)
+                mw.col.save()
+                result = True
             else:
                 error = f"unsupported action: {action}"
         except Exception as e:
