@@ -35,14 +35,12 @@ type WordData struct {
 
 type AppState struct {
 	IsEnabled bool `json:"enabled"`
-	WordCount int  `json:"word_count"`
 }
 
 var (
-	appState   = &AppState{IsEnabled: true, WordCount: 0}
+	appState   = &AppState{IsEnabled: true}
 	statusIcon *canvas.Text
 	statusText *widget.Label
-	countLabel *widget.Label
 	enableBtn  *widget.Button
 	wordEntry  *widget.Entry
 	mainWindow fyne.Window
@@ -110,12 +108,10 @@ func buildUI() *fyne.Container {
 
 	// 状态文字
 	statusText = widget.NewLabelWithStyle("Enabled", fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
-	countLabel = widget.NewLabelWithStyle("0 words", fyne.TextAlignCenter, fyne.TextStyle{})
 
 	// 状态卡片
 	statusCard = container.NewVBox(
 		container.NewCenter(container.NewHBox(statusIcon, statusText)),
-		container.NewCenter(countLabel),
 	)
 
 	// 切换按钮
@@ -192,7 +188,6 @@ func updateStatus() {
 		statusText.SetText("Paused")
 		enableBtn.SetText("▶ Enable")
 	}
-	countLabel.SetText(fmt.Sprintf("%d words", appState.WordCount))
 }
 
 func addWord(word string) {
@@ -242,9 +237,6 @@ func addWord(word string) {
 		return
 	}
 
-	appState.WordCount++
-	updateStatus()
-	saveState()
 	showNotification("✅ "+wordData.Word, preview)
 }
 
