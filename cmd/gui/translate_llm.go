@@ -18,21 +18,24 @@ func translateLLM(word string) *WordData {
 
 	endpoint := strings.TrimRight(ankiConfig.LLMEndpoint, "/") + "/chat/completions"
 
-	prompt := fmt.Sprintf(`请翻译以下英文单词/短语为中文，给出简洁的翻译结果。
-格式要求（严格按此格式返回，不要多余内容）：
+	prompt := fmt.Sprintf(`请翻译以下英文单词/短语，给出完整的学习卡片内容。
+格式要求（严格按此格式返回，每项一行，不要多余内容）：
 音标: /xxx/
 释义: 中文释义1; 中文释义2
+例句: 英文例句1 (中文翻译1)
+例句: 英文例句2 (中文翻译2)
+易混淆: word1 - 释义1 | word2 - 释义2
 
 单词: %s`, word)
 
 	reqBody := map[string]any{
 		"model": ankiConfig.LLMModel,
 		"messages": []map[string]string{
-			{"role": "system", "content": "你是一个英中翻译助手，只返回音标和简洁的中文释义，不要解释。"},
+			{"role": "system", "content": "你是一个英语学习助手。返回音标、中文释义、常用例句（带中文翻译）和容易混淆的近义词/形近词。严格按用户要求的格式返回。"},
 			{"role": "user", "content": prompt},
 		},
 		"temperature": 0.3,
-		"max_tokens":  200,
+		"max_tokens":  500,
 	}
 
 	jsonBody, err := json.Marshal(reqBody)
@@ -83,18 +86,41 @@ func translateLLM(word string) *WordData {
 	return parseLLMResponse(word, content)
 }
 
-// parseLLMResponse extracts phonetic and translation from LLM response
+// parseLLMResponse extracts phonetic, translation, examples and confusables from LLM response
 func parseLLMResponse(word, content string) *WordData {
 	data := &WordData{Word: word}
+
+	var examples []string
+	var confusables []string
 
 	lines := strings.Split(content, "\n")
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, "音标:") || strings.HasPrefix(line, "音标：") {
-			data.Phonetic = strings.TrimSpace(strings.TrimPrefix(strings.TrimPrefix(line, "音标:"), "音标："))
-		} else if strings.HasPrefix(line, "释义:") || strings.HasPrefix(line, "释义：") {
-			data.Translation = strings.TrimSpace(strings.TrimPrefix(strings.TrimPrefix(line, "释义:"), "释义："))
+		if line == "" {
+			continue
 		}
+		if strings.HasPrefix(line, "音标:") || strings.HasPrefix(line, "音标：") {
+			data.Phonetic = strings.TrimSpace(trimPrefix(line, "音标"))
+		} else if strings.HasPrefix(line, "释义:") || strings.HasPrefix(line, "释义：") {
+			data.Translation = strings.TrimSpace(trimPrefix(line, "释义"))
+		} else if strings.HasPrefix(line, "例句:") || strings.HasPrefix(line, "例句：") {
+			ex := strings.TrimSpace(trimPrefix(line, "例句"))
+			if ex != "" {
+				examples = append(examples, ex)
+			}
+		} else if strings.HasPrefix(line, "易混淆:") || strings.HasPrefix(line, "易混淆：") {
+			cf := strings.TrimSpace(trimPrefix(line, "易混淆"))
+			if cf != "" {
+				confusables = append(confusables, cf)
+			}
+		}
+	}
+
+	if len(examples) > 0 {
+		data.Examples = strings.Join(examples, "<br>")
+	}
+	if len(confusables) > 0 {
+		data.Confusables = strings.Join(confusables, "<br>")
 	}
 
 	// Fallback: if no structured format, use entire content as translation
@@ -103,4 +129,11 @@ func parseLLMResponse(word, content string) *WordData {
 	}
 
 	return data
+}
+
+// trimPrefix removes "key:" or "key：" prefix
+func trimPrefix(line, key string) string {
+	line = strings.TrimPrefix(line, key+":")
+	line = strings.TrimPrefix(line, key+"：")
+	return line
 }

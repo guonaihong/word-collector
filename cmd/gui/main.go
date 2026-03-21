@@ -31,6 +31,8 @@ type WordData struct {
 	Phonetic    string `json:"phonetic"`
 	Translation string `json:"translation"`
 	Definition  string `json:"definition"`
+	Examples    string `json:"examples"`
+	Confusables string `json:"confusables"`
 }
 
 type AppState struct {
@@ -320,7 +322,14 @@ func translateYoudao(word string) *WordData {
 
 func generateAnkiCard(data *WordData) (string, string) {
 	front := fmt.Sprintf("%s<br><span style='color:#666;'>%s</span>", data.Word, data.Phonetic)
+
 	back := fmt.Sprintf("<b>%s</b>", data.Translation)
+	if data.Examples != "" {
+		back += fmt.Sprintf("<br><br><div style='color:#4a9eff;font-size:0.9em;'>📖 例句</div><div style='font-size:0.85em;'>%s</div>", data.Examples)
+	}
+	if data.Confusables != "" {
+		back += fmt.Sprintf("<br><div style='color:#ff9800;font-size:0.9em;'>⚠️ 易混淆</div><div style='font-size:0.85em;'>%s</div>", data.Confusables)
+	}
 	return front, back
 }
 
