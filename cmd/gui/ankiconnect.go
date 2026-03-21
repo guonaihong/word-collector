@@ -51,6 +51,30 @@ class Handler(BaseHTTPRequestHandler):
                     result = [f["name"] for f in model["flds"]]
                 else:
                     error = f"model not found: {model_name}"
+            elif action == "findNotes":
+                query = params.get("query", "")
+                result = list(mw.col.find_notes(query))
+            elif action == "notesInfo":
+                note_ids = params.get("notes", [])
+                infos = []
+                for nid in note_ids:
+                    note = mw.col.get_note(nid)
+                    fields = {}
+                    for f in note.keys():
+                        fields[f] = note[f]
+                    infos.append({"noteId": nid, "fields": fields, "tags": list(note.tags)})
+                result = infos
+            elif action == "updateNoteFields":
+                note_data = params.get("note", {})
+                nid = note_data.get("id")
+                fields = note_data.get("fields", {})
+                note = mw.col.get_note(nid)
+                for name, value in fields.items():
+                    if name in note:
+                        note[name] = value
+                mw.col.update_note(note)
+                mw.col.save()
+                result = True
             else:
                 error = f"unsupported action: {action}"
         except Exception as e:

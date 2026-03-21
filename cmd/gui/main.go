@@ -147,10 +147,8 @@ func buildUI() *fyne.Container {
 		exec.Command("open", "-a", "Anki").Run()
 	})
 
-	folderBtn := widget.NewButton("Folder", func() {
-		dir := expandPath("~/word-collector")
-		os.MkdirAll(dir, 0755)
-		exec.Command("open", dir).Run()
+	retranslateBtn := widget.NewButton("🔄 刷新翻译", func() {
+		showRetranslateDialog()
 	})
 
 	settingsBtn := widget.NewButton("⚙ Settings", func() {
@@ -164,7 +162,7 @@ func buildUI() *fyne.Container {
 		widget.NewSeparator(),
 		container.NewBorder(nil, nil, nil, container.NewHBox(pasteBtn, addBtn), wordEntry),
 		widget.NewSeparator(),
-		container.NewGridWithColumns(3, ankiBtn, folderBtn, settingsBtn),
+		container.NewGridWithColumns(3, ankiBtn, retranslateBtn, settingsBtn),
 	)
 
 	return container.NewPadded(content)
