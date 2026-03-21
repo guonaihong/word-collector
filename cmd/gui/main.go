@@ -61,8 +61,17 @@ func main() {
 	mainWindow.SetContent(buildUI())
 	loadState()
 	setupSystemTray()
+
+	// Register global hotkeys (⌃⌘W: collect, ⌃⌘S: toggle)
+	if err := setupGlobalHotkeys(); err != nil {
+		fmt.Printf("⚠️  Global hotkeys not available: %v\n", err)
+		fmt.Println("Tip: Grant accessibility permission in System Settings → Privacy & Security → Accessibility")
+	}
+
 	mainWindow.SetCloseIntercept(func() { mainWindow.Hide() })
 	mainWindow.ShowAndRun()
+
+	cleanupGlobalHotkeys()
 }
 
 func buildUI() *fyne.Container {

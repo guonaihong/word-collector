@@ -54,24 +54,18 @@ GUI 功能：
 | **打开文件夹** | 打开单词收集目录 |
 | **系统托盘** | 关闭窗口后最小化到托盘 |
 
-### 快捷键取词（配合 Hammerspoon）
+### 全局快捷键（GUI 内置）
 
-1. 安装 [Hammerspoon](https://www.hammerspoon.org/)
-2. 运行安装脚本：
-   ```bash
-   ./restart.sh
-   ```
-3. 授予 Hammerspoon 辅助功能权限：
-   - 系统设置 → 隐私与安全性 → 辅助功能
-   - 勾选 Hammerspoon
+GUI 运行时自动注册全局快捷键，无需安装任何外部工具。
 
-**快捷键**：
+首次使用需授予辅助功能权限：
+- 系统设置 → 隐私与安全性 → 辅助功能
+- 勾选 Word Collector（或终端应用，如果从终端启动）
+
 | 快捷键 | 功能 |
 |--------|------|
-| `⌃⌘W` | 取词添加 |
-
-**菜单栏图标**：
-- 📖 = Word Collector 已加载
+| `⌃⌘W` | 选中单词后取词添加到 Anki |
+| `⌃⌘S` | 暂停/启用取词功能 |
 
 ### CLI 命令行
 
@@ -83,32 +77,33 @@ GUI 功能：
 ~/word-collector/word-collector
 ```
 
-## 重启服务
+### Hammerspoon（可选，备用方案）
+
+如果不想运行 GUI，也可以通过 Hammerspoon 配合 CLI 使用快捷键：
 
 ```bash
 ./restart.sh
 ```
 
-此脚本会：
-1. 检查/安装 Hammerspoon
-2. 复制 word-collector 到正确位置
-3. 配置 Hammerspoon
-4. 重启 Hammerspoon
+此脚本会检查/安装 Hammerspoon、复制配置并重启。
 
 ## 项目结构
 
 ```
 word-collector/
-├── cmd/cli/main.go         # CLI 主程序
-├── cmd/gui/main.go         # GUI 界面（Fyne）
-├── build-dmg.sh            # DMG 打包脚本
-├── restart.sh              # 重启服务脚本
-├── hammerspoon/
-│   ├── word_collector.lua  # Hammerspoon 配置
-│   └── install.sh          # Hammerspoon 安装脚本
+├── cmd/
+│   ├── cli/main.go              # CLI 主程序
+│   └── gui/
+│       ├── main.go              # GUI 界面（Fyne）
+│       └── hotkey_darwin.go     # macOS 全局快捷键（CGO）
+├── build-dmg.sh                 # DMG 打包脚本
+├── restart.sh                   # Hammerspoon 重启脚本（可选）
+├── hammerspoon/                 # Hammerspoon 配置（可选）
+│   ├── word_collector.lua
+│   └── install.sh
 └── dist/
-    ├── Word Collector.app  # 打包的应用
-    └── WordCollector-*.dmg # DMG 安装包
+    ├── Word Collector.app       # 打包的应用
+    └── WordCollector-*.dmg      # DMG 安装包
 ```
 
 ## Anki 配置
@@ -139,16 +134,17 @@ GUI 版本默认使用：
 
 - Go 1.21+
 - [Fyne v2.4.3](https://fyne.io/)（GUI）
-- [Hammerspoon](https://www.hammerspoon.org/)（快捷键）
 - [Anki](https://apps.ankiweb.net/) + AnkiConnect 插件（可选）
+- [Hammerspoon](https://www.hammerspoon.org/)（可选，仅 CLI 快捷键方案需要）
 
 ## 故障排除
 
 ### 快捷键不工作
 
-1. 检查 Hammerspoon 是否有辅助功能权限
-2. 点击菜单栏 📖 → Reload 重新加载配置
-3. 查看日志：`open -a Console`（搜索 WordCollector）
+1. 确认 GUI 正在运行（关闭窗口后会最小化到系统托盘）
+2. 检查辅助功能权限：系统设置 → 隐私与安全性 → 辅助功能，确保 Word Collector 已勾选
+3. 如果从终端启动，需要勾选终端应用（如 Terminal.app 或 iTerm）的辅助功能权限
+4. 重启应用后重试
 
 ### 无法添加到 Anki
 
