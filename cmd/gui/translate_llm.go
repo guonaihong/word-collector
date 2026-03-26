@@ -87,6 +87,11 @@ func translateLLM(word string) *WordData {
 	}
 
 	content := strings.TrimSpace(result.Choices[0].Message.Content)
+	// Strip qwen3 <think>...</think> blocks
+	if idx := strings.Index(content, "</think>"); idx >= 0 {
+		content = strings.TrimSpace(content[idx+len("</think>"):])
+	}
+	fmt.Printf("🔍 LLM raw [%s]: %s\n", word, content)
 	return parseLLMResponse(word, content)
 }
 
