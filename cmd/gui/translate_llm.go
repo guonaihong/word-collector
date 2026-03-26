@@ -21,6 +21,7 @@ func translateLLM(word string) *WordData {
 	prompt := fmt.Sprintf(`请翻译以下英文单词/短语，给出完整的学习卡片内容。
 格式要求（严格按此格式返回，每项一行，不要多余内容）：
 音标: /xxx/
+谐音: 用中文模拟英文发音，方便记忆
 释义: 中文释义1; 中文释义2
 例句: 英文例句1 (中文翻译1)
 例句: 英文例句2 (中文翻译2)
@@ -34,7 +35,7 @@ func translateLLM(word string) *WordData {
 	reqBody := map[string]any{
 		"model": ankiConfig.LLMModel,
 		"messages": []map[string]string{
-			{"role": "system", "content": "你是一个英语学习助手。返回音标、中文释义、常用例句、容易混淆的字形相近词（重点列出拼写只差一两个字母的词，如warning/warming、diary/dairy这类）、以及记忆技巧。严格按用户格式返回。"},
+			{"role": "system", "content": "你是一个英语学习助手。返回音标、中文谐音（用中文模拟英文发音，如 able → “爱博”，尽量接近真实发音）、中文释义、常用例句、字形相近的易混淆词、以及记忆技巧。严格按用户格式返回。"},
 			{"role": "user", "content": prompt},
 		},
 		"temperature": 0.3,
@@ -104,6 +105,8 @@ func parseLLMResponse(word, content string) *WordData {
 		}
 		if strings.HasPrefix(line, "音标:") || strings.HasPrefix(line, "音标：") {
 			data.Phonetic = strings.TrimSpace(trimPrefix(line, "音标"))
+		} else if strings.HasPrefix(line, "谐音:") || strings.HasPrefix(line, "谐音：") {
+			data.CnPronunciation = strings.TrimSpace(trimPrefix(line, "谐音"))
 		} else if strings.HasPrefix(line, "释义:") || strings.HasPrefix(line, "释义：") {
 			data.Translation = strings.TrimSpace(trimPrefix(line, "释义"))
 		} else if strings.HasPrefix(line, "例句:") || strings.HasPrefix(line, "例句：") {

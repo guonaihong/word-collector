@@ -27,13 +27,14 @@ const (
 )
 
 type WordData struct {
-	Word        string `json:"word"`
-	Phonetic    string `json:"phonetic"`
-	Translation string `json:"translation"`
-	Definition  string `json:"definition"`
-	Examples    string `json:"examples"`
-	Confusables string `json:"confusables"`
-	MemoryAid   string `json:"memory_aid"`
+	Word            string `json:"word"`
+	Phonetic        string `json:"phonetic"`
+	CnPronunciation string `json:"cn_pronunciation"`
+	Translation     string `json:"translation"`
+	Definition      string `json:"definition"`
+	Examples        string `json:"examples"`
+	Confusables     string `json:"confusables"`
+	MemoryAid       string `json:"memory_aid"`
 }
 
 type AppState struct {
@@ -322,7 +323,11 @@ func translateYoudao(word string) *WordData {
 }
 
 func generateAnkiCard(data *WordData) (string, string) {
-	front := fmt.Sprintf("%s<br><span style='color:#666;'>%s</span>", data.Word, data.Phonetic)
+	phoneticLine := data.Phonetic
+	if data.CnPronunciation != "" {
+		phoneticLine += fmt.Sprintf("  <span style='color:#e91e63;'>(%s)</span>", data.CnPronunciation)
+	}
+	front := fmt.Sprintf("%s<br><span style='color:#666;'>%s</span>", data.Word, phoneticLine)
 
 	back := fmt.Sprintf("<b>%s</b>", data.Translation)
 	if data.Examples != "" {
