@@ -108,9 +108,10 @@ func retranslateDeck(deckName string, cb *translateCallback) (int64, int, int64)
 					continue
 				}
 
-				_, back := generateAnkiCard(wordData)
+				front, back := generateAnkiCard(wordData)
 
-				if err := updateNoteField(t.note.NoteID, backField, back); err != nil {
+				// Update both front (phonetic + 谐音) and back (translation + examples etc.)
+				if err := updateNoteFields(t.note.NoteID, frontField, front, backField, back); err != nil {
 					atomic.AddInt64(&failed, 1)
 					atomic.AddInt64(&done, 1)
 					mu.Lock()
@@ -323,6 +324,20 @@ func updateNoteField(noteID int64, fieldName, value string) error {
 		"note": map[string]any{
 			"id":     noteID,
 			"fields": map[string]string{fieldName: value},
+		},
+	})
+	return err
+}
+
+// updateNoteFields updates both front and back fields of a note in one call
+func updateNoteFields(noteID int64, frontField, frontValue, backField, backValue string) error {
+	_, err := queryAnkiConnect("updateNoteFields", map[string]any{
+		"note": map[string]any{
+			"id": noteID,
+			"fields": map[string]string{
+				frontField: frontValue,
+				backField:  backValue,
+			},
 		},
 	})
 	return err
