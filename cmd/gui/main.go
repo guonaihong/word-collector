@@ -323,13 +323,15 @@ func translateYoudao(word string) *WordData {
 }
 
 func generateAnkiCard(data *WordData) (string, string) {
+	front := data.Word
+
+	// Back: phonetic + 谐音 + translation + examples + confusables + memory aid
 	phoneticLine := data.Phonetic
 	if data.CnPronunciation != "" {
 		phoneticLine += fmt.Sprintf("  <span style='color:#e91e63;'>(%s)</span>", data.CnPronunciation)
 	}
-	front := fmt.Sprintf("%s<br><span style='color:#666;'>%s</span>", data.Word, phoneticLine)
-
-	back := fmt.Sprintf("<b>%s</b>", data.Translation)
+	back := fmt.Sprintf("<div style='color:#666;'>%s</div>", phoneticLine)
+	back += fmt.Sprintf("<b>%s</b>", data.Translation)
 	if data.Examples != "" {
 		back += fmt.Sprintf("<br><br><div style='color:#4a9eff;font-size:0.9em;'>📖 例句</div><div style='font-size:0.85em;'>%s</div>", data.Examples)
 	}
