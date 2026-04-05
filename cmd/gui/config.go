@@ -10,6 +10,14 @@ import (
 	"strings"
 )
 
+// LLMModelConfig stores configuration for a single LLM model
+type LLMModelConfig struct {
+	Name     string `json:"name"`     // Display name, e.g. "Qwen 3.5 35B"
+	Endpoint string `json:"endpoint"` // API address
+	APIKey   string `json:"api_key"`  // API Key
+	Model    string `json:"model"`    // Model name
+}
+
 // AnkiConfig stores the user's Anki deck/model preferences and translation settings
 type AnkiConfig struct {
 	DeckName   string `json:"deck_name"`
@@ -18,10 +26,12 @@ type AnkiConfig struct {
 	BackField  string `json:"back_field"`
 
 	// Translation settings
-	TranslateSource string `json:"translate_source"` // "youdao" or "llm"
-	LLMEndpoint     string `json:"llm_endpoint"`     // e.g. https://api.moonshot.cn/v1
-	LLMAPIKey       string `json:"llm_api_key"`
-	LLMModel        string `json:"llm_model"` // e.g. moonshot-v1-8k
+	TranslateSource string           `json:"translate_source"` // "youdao" or "llm"
+	LLMModels       []LLMModelConfig `json:"llm_models"`       // Multi-model config
+	// Legacy fields kept for migration compatibility
+	LLMEndpoint string `json:"llm_endpoint"` // e.g. https://api.moonshot.cn/v1
+	LLMAPIKey   string `json:"llm_api_key"`
+	LLMModel    string `json:"llm_model"` // e.g. moonshot-v1-8k
 }
 
 var ankiConfig *AnkiConfig
@@ -34,6 +44,18 @@ func loadAnkiConfig() {
 	ankiConfig = &AnkiConfig{}
 	if data, err := os.ReadFile(getConfigFile()); err == nil {
 		json.Unmarshal(data, ankiConfig)
+	}
+	// Migration: if LLMModels is empty but legacy fields have values, migrate
+	if len(ankiConfig.LLMModels) == 0 && ankiConfig.LLMEndpoint != "" && ankiConfig.LLMAPIKey != "" && ankiConfig.LLMModel != "" {
+		ankiConfig.LLMModels = []LLMModelConfig{
+			{
+				Name:     ankiConfig.LLMModel,
+				Endpoint: ankiConfig.LLMEndpoint,
+				APIKey:   ankiConfig.LLMAPIKey,
+				Model:    ankiConfig.LLMModel,
+			},
+		}
+		saveAnkiConfig()
 	}
 }
 

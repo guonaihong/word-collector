@@ -15,7 +15,7 @@ func showDeckSetupDialog() {
 	mainWindow.RequestFocus()
 
 	settingsWindow := fyneApp.NewWindow("⚙ 设置")
-	settingsWindow.Resize(fyne.NewSize(480, 400))
+	settingsWindow.Resize(fyne.NewSize(480, 500))
 
 	ankiTab := buildAnkiTab(settingsWindow)
 	translateTab := buildTranslateTab(settingsWindow)
@@ -153,7 +153,16 @@ func buildAnkiTab(win fyne.Window) fyne.CanvasObject {
 	return container.NewVBox(form, widget.NewSeparator(), saveBtn)
 }
 
-// buildTranslateTab creates the Translation/LLM configuration tab
+// modelConfigRow holds the UI widgets for one model configuration
+type modelConfigRow struct {
+	nameEntry     *widget.Entry
+	endpointEntry *widget.Entry
+	apiKeyEntry   *widget.Entry
+	modelEntry    *widget.Entry
+	container     *fyne.Container
+}
+
+// buildTranslateTab creates the Translation/LLM configuration tab with multi-model support
 func buildTranslateTab(win fyne.Window) fyne.CanvasObject {
 	sourceOptions := []string{"有道词典", "LLM (Kimi/DeepSeek/...)"}
 	sourceSelect := widget.NewSelect(sourceOptions, nil)
@@ -177,50 +186,117 @@ func buildTranslateTab(win fyne.Window) fyne.CanvasObject {
 		sourceSelect.SetSelected(display)
 	}
 
-	endpointEntry := widget.NewEntry()
-	endpointEntry.SetPlaceHolder("https://api.moonshot.cn/v1")
-	endpointEntry.SetText(ankiConfig.LLMEndpoint)
+	// --- Multi-model list ---
+	var modelRows []modelConfigRow
+	modelListContainer := container.NewVBox()
 
-	apiKeyEntry := widget.NewPasswordEntry()
-	apiKeyEntry.SetPlaceHolder("sk-...")
-	apiKeyEntry.SetText(ankiConfig.LLMAPIKey)
+	// Build a scrollable model list
+	scroll := container.NewVScroll(modelListContainer)
+	scroll.SetMinSize(fyne.NewSize(440, 200))
 
-	modelEntry := widget.NewEntry()
-	modelEntry.SetPlaceHolder("moonshot-v1-8k")
-	modelEntry.SetText(ankiConfig.LLMModel)
+	addModelRow := func(cfg LLMModelConfig) modelConfigRow {
+		nameEntry := widget.NewEntry()
+		nameEntry.SetPlaceHolder("模型名称")
+		nameEntry.SetText(cfg.Name)
 
-	// Preset buttons for common providers
+		endpointEntry := widget.NewEntry()
+		endpointEntry.SetPlaceHolder("https://api.moonshot.cn/v1")
+		endpointEntry.SetText(cfg.Endpoint)
+
+		apiKeyEntry := widget.NewPasswordEntry()
+		apiKeyEntry.SetPlaceHolder("sk-...")
+		apiKeyEntry.SetText(cfg.APIKey)
+
+		modelEntry := widget.NewEntry()
+		modelEntry.SetPlaceHolder("moonshot-v1-8k")
+		modelEntry.SetText(cfg.Model)
+
+		rowForm := widget.NewForm(
+			widget.NewFormItem("名称", nameEntry),
+			widget.NewFormItem("API 地址", endpointEntry),
+			widget.NewFormItem("API Key", apiKeyEntry),
+			widget.NewFormItem("模型", modelEntry),
+		)
+
+		row := modelConfigRow{
+			nameEntry:     nameEntry,
+			endpointEntry: endpointEntry,
+			apiKeyEntry:   apiKeyEntry,
+			modelEntry:    modelEntry,
+			container:     container.NewVBox(rowForm),
+		}
+		modelRows = append(modelRows, row)
+		modelListContainer.Add(row.container)
+		modelListContainer.Refresh()
+		scroll.Refresh()
+		return row
+	}
+
+	removeLastRow := func() {
+		if len(modelRows) > 0 {
+			modelListContainer.Remove(modelRows[len(modelRows)-1].container)
+			modelRows = modelRows[:len(modelRows)-1]
+			modelListContainer.Refresh()
+			scroll.Refresh()
+		}
+	}
+
+	// Populate existing models
+	for _, cfg := range ankiConfig.LLMModels {
+		addModelRow(cfg)
+	}
+	// If no models yet, add one empty row
+	if len(modelRows) == 0 {
+		addModelRow(LLMModelConfig{})
+	}
+
+	// --- Preset buttons: fill the last row ---
 	presets := container.NewGridWithColumns(4,
 		widget.NewButton("LM Studio", func() {
-			endpointEntry.SetText("http://localhost:1234/v1")
-			modelEntry.SetText("qwen/qwen3-30b-a3b-2507")
-			apiKeyEntry.SetText("lm-studio")
+			if len(modelRows) > 0 {
+				last := modelRows[len(modelRows)-1]
+				last.endpointEntry.SetText("http://localhost:1234/v1")
+				last.modelEntry.SetText("qwen/qwen3-30b-a3b-2507")
+				last.apiKeyEntry.SetText("lm-studio")
+			}
 		}),
 		widget.NewButton("Kimi", func() {
-			endpointEntry.SetText("https://api.moonshot.cn/v1")
-			modelEntry.SetText("moonshot-v1-8k")
+			if len(modelRows) > 0 {
+				last := modelRows[len(modelRows)-1]
+				last.endpointEntry.SetText("https://api.moonshot.cn/v1")
+				last.modelEntry.SetText("moonshot-v1-8k")
+			}
 		}),
 		widget.NewButton("DeepSeek", func() {
-			endpointEntry.SetText("https://api.deepseek.com/v1")
-			modelEntry.SetText("deepseek-chat")
+			if len(modelRows) > 0 {
+				last := modelRows[len(modelRows)-1]
+				last.endpointEntry.SetText("https://api.deepseek.com/v1")
+				last.modelEntry.SetText("deepseek-chat")
+			}
 		}),
 		widget.NewButton("OpenAI", func() {
-			endpointEntry.SetText("https://api.openai.com/v1")
-			modelEntry.SetText("gpt-4o-mini")
+			if len(modelRows) > 0 {
+				last := modelRows[len(modelRows)-1]
+				last.endpointEntry.SetText("https://api.openai.com/v1")
+				last.modelEntry.SetText("gpt-4o-mini")
+			}
 		}),
 	)
 
-	llmForm := widget.NewForm(
-		widget.NewFormItem("API 地址", endpointEntry),
-		widget.NewFormItem("API Key", apiKeyEntry),
-		widget.NewFormItem("模型", modelEntry),
-	)
+	addBtn := widget.NewButton("➕ 添加模型", func() {
+		addModelRow(LLMModelConfig{})
+	})
+	delBtn := widget.NewButton("➖ 删除末尾", func() {
+		removeLastRow()
+	})
 
 	llmSection := container.NewVBox(
-		widget.NewLabelWithStyle("快速填充:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		presets,
+		widget.NewLabelWithStyle("模型列表:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		scroll,
+		container.NewGridWithColumns(2, addBtn, delBtn),
 		widget.NewSeparator(),
-		llmForm,
+		widget.NewLabelWithStyle("快速填充 (末行):", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		presets,
 	)
 
 	// Show/hide LLM section based on source
@@ -246,17 +322,27 @@ func buildTranslateTab(win fyne.Window) fyne.CanvasObject {
 		ankiConfig.TranslateSource = sourceMap[selected]
 
 		if sourceMap[selected] == "llm" {
-			if endpointEntry.Text == "" || apiKeyEntry.Text == "" || modelEntry.Text == "" {
-				dialog.ShowError(fmt.Errorf("请填写完整的 LLM 配置"), win)
+			var models []LLMModelConfig
+			for _, row := range modelRows {
+				if row.endpointEntry.Text == "" || row.apiKeyEntry.Text == "" || row.modelEntry.Text == "" {
+					continue
+				}
+				models = append(models, LLMModelConfig{
+					Name:     row.nameEntry.Text,
+					Endpoint: row.endpointEntry.Text,
+					APIKey:   row.apiKeyEntry.Text,
+					Model:    row.modelEntry.Text,
+				})
+			}
+			if len(models) == 0 {
+				dialog.ShowError(fmt.Errorf("请至少配置一个完整的 LLM 模型"), win)
 				return
 			}
-			ankiConfig.LLMEndpoint = endpointEntry.Text
-			ankiConfig.LLMAPIKey = apiKeyEntry.Text
-			ankiConfig.LLMModel = modelEntry.Text
+			ankiConfig.LLMModels = models
 		}
 
 		saveAnkiConfig()
-		fmt.Printf("✅ Translation config saved: source=%s\n", ankiConfig.TranslateSource)
+		fmt.Printf("✅ Translation config saved: source=%s, models=%d\n", ankiConfig.TranslateSource, len(ankiConfig.LLMModels))
 		showNotification("Word Collector", "翻译配置已保存: "+selected)
 	})
 	saveBtn.Importance = widget.HighImportance

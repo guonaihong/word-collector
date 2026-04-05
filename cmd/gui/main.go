@@ -26,6 +26,11 @@ const (
 	AnkiTag = "word-collector"
 )
 
+type ModelResult struct {
+	ModelName string
+	Content   string // Formatted HTML fragment
+}
+
 type WordData struct {
 	Word            string `json:"word"`
 	Phonetic        string `json:"phonetic"`
@@ -35,6 +40,8 @@ type WordData struct {
 	Examples        string `json:"examples"`
 	Confusables     string `json:"confusables"`
 	MemoryAid       string `json:"memory_aid"`
+	// Multi-model results
+	ModelResults []ModelResult `json:"model_results"`
 }
 
 type AppState struct {
@@ -325,22 +332,39 @@ func translateYoudao(word string) *WordData {
 func generateAnkiCard(data *WordData) (string, string) {
 	front := data.Word
 
-	// Back: phonetic + 谐音 + translation + examples + confusables + memory aid
+	// Back: phonetic + 谐音 + translation
 	phoneticLine := data.Phonetic
 	if data.CnPronunciation != "" {
 		phoneticLine += fmt.Sprintf("  <span style='color:#e91e63;'>(%s)</span>", data.CnPronunciation)
 	}
 	back := fmt.Sprintf("<div style='color:#666;'>%s</div>", phoneticLine)
 	back += fmt.Sprintf("<b>%s</b>", data.Translation)
-	if data.Examples != "" {
-		back += fmt.Sprintf("<br><br><div style='color:#4a9eff;font-size:0.9em;'>📖 例句</div><div style='font-size:0.85em;'>%s</div>", data.Examples)
+
+	if len(data.ModelResults) > 0 {
+		// Multi-model mode: detailed content shown in per-model sections with labels
+		modelColors := []string{"#2196F3", "#4CAF50", "#FF9800", "#9C27B0", "#F44336", "#00BCD4"}
+		for i, mr := range data.ModelResults {
+			color := modelColors[i%len(modelColors)]
+			back += fmt.Sprintf(
+				"<br><br><div style='border-left:3px solid %s;padding-left:8px;margin-top:6px;'>"+
+					"<div style='color:%s;font-size:0.85em;font-weight:bold;margin-bottom:4px;'>🤖 %s</div>"+
+					"<div style='font-size:0.85em;'>%s</div></div>",
+				color, color, mr.ModelName, mr.Content,
+			)
+		}
+	} else {
+		// Single model / Youdao mode: show detailed content directly
+		if data.Examples != "" {
+			back += fmt.Sprintf("<br><br><div style='color:#4a9eff;font-size:0.9em;'>📖 例句</div><div style='font-size:0.85em;'>%s</div>", data.Examples)
+		}
+		if data.Confusables != "" {
+			back += fmt.Sprintf("<br><div style='color:#ff9800;font-size:0.9em;'>⚠️ 易混淆</div><div style='font-size:0.85em;'>%s</div>", data.Confusables)
+		}
+		if data.MemoryAid != "" {
+			back += fmt.Sprintf("<br><div style='color:#ab47bc;font-size:0.9em;'>💡 记忆技巧</div><div style='font-size:0.85em;'>%s</div>", data.MemoryAid)
+		}
 	}
-	if data.Confusables != "" {
-		back += fmt.Sprintf("<br><div style='color:#ff9800;font-size:0.9em;'>⚠️ 易混淆</div><div style='font-size:0.85em;'>%s</div>", data.Confusables)
-	}
-	if data.MemoryAid != "" {
-		back += fmt.Sprintf("<br><div style='color:#ab47bc;font-size:0.9em;'>💡 记忆技巧</div><div style='font-size:0.85em;'>%s</div>", data.MemoryAid)
-	}
+
 	return front, back
 }
 
