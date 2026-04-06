@@ -173,7 +173,9 @@ func buildUI() *fyne.Container {
 		widget.NewSeparator(),
 		container.NewBorder(nil, nil, nil, container.NewHBox(pasteBtn, addBtn), wordEntry),
 		widget.NewSeparator(),
-		container.NewGridWithColumns(3, ankiBtn, retranslateBtn, settingsBtn),
+		container.NewGridWithColumns(4, ankiBtn, retranslateBtn, widget.NewButton("PDF 词频", func() {
+			showWordFreqDialog()
+		}), settingsBtn),
 	)
 
 	return container.NewPadded(content)

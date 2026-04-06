@@ -1,0 +1,108 @@
+package main
+
+import "strings"
+
+var defaultStopWords = map[string]bool{
+	// Articles
+	"the": true, "a": true, "an": true,
+	// Pronouns
+	"i": true, "me": true, "my": true, "mine": true, "myself": true,
+	"you": true, "your": true, "yours": true, "yourself": true,
+	"he": true, "him": true, "his": true, "himself": true,
+	"she": true, "her": true, "hers": true, "herself": true,
+	"it": true, "its": true, "itself": true,
+	"we": true, "us": true, "our": true, "ours": true, "ourselves": true,
+	"they": true, "them": true, "their": true, "theirs": true, "themselves": true,
+	"this": true, "that": true, "these": true, "those": true,
+	"who": true, "whom": true, "whose": true, "which": true, "what": true,
+	// Be verbs
+	"is": true, "am": true, "are": true, "was": true, "were": true,
+	"be": true, "been": true, "being": true,
+	// Have verbs
+	"have": true, "has": true, "had": true, "having": true,
+	// Do verbs
+	"do": true, "does": true, "did": true, "doing": true, "done": true,
+	// Modal verbs
+	"will": true, "would": true, "shall": true, "should": true,
+	"can": true, "could": true, "may": true, "might": true,
+	"must": true, "need": true, "dare": true, "ought": true,
+	// Prepositions
+	"in": true, "on": true, "at": true, "to": true, "for": true,
+	"with": true, "without": true, "by": true, "from": true, "of": true,
+	"about": true, "above": true, "across": true, "after": true, "against": true,
+	"along": true, "among": true, "around": true, "before": true, "behind": true,
+	"below": true, "beneath": true, "beside": true, "between": true, "beyond": true,
+	"during": true, "except": true, "into": true, "near": true, "over": true,
+	"through": true, "under": true, "until": true, "upon": true, "within": true,
+	// Conjunctions
+	"and": true, "but": true, "or": true, "nor": true, "not": true,
+	"so": true, "yet": true, "both": true, "either": true, "neither": true,
+	"if": true, "then": true, "else": true, "when": true, "whenever": true,
+	"where": true, "whereas": true, "while": true, "because": true, "since": true,
+	"although": true, "though": true, "unless": true, "whether": true,
+	// Adverbs / other common words
+	"also": true, "just": true, "very": true, "too": true, "quite": true,
+	"only": true, "even": true, "still": true, "already": true, "always": true,
+	"never": true, "often": true, "usually": true, "sometimes": true,
+	"here": true, "there": true, "now": true, "how": true, "why": true,
+	"well": true, "much": true, "more": true, "most": true, "less": true,
+	"again": true, "once": true, "further": true, "however": true,
+	"therefore": true, "thus": true, "indeed": true, "perhaps": true,
+	"rather": true, "instead": true,
+	// Other high-frequency words
+	"than": true, "as": true, "up": true, "down": true, "out": true,
+	"off": true, "all": true, "each": true, "every": true, "any": true,
+	"some": true, "such": true, "no": true, "same": true, "other": true,
+	"another": true, "many": true, "few": true, "several": true,
+	"own": true, "like": true, "get": true, "got": true, "make": true,
+	"go": true, "went": true, "gone": true, "come": true, "came": true,
+	"take": true, "took": true, "taken": true, "give": true, "gave": true,
+	"say": true, "said": true, "see": true, "saw": true, "know": true,
+	"knew": true, "known": true, "think": true, "thought": true,
+	"use": true, "used": true, "find": true, "found": true,
+	"tell": true, "told": true, "ask": true, "asked": true,
+	"seem": true, "seemed": true, "feel": true, "felt": true,
+	"try": true, "tried": true, "leave": true, "left": true,
+	"call": true, "called": true, "keep": true, "kept": true,
+	"let": true, "begin": true, "began": true, "show": true, "showed": true,
+	"hear": true, "heard": true, "play": true, "run": true, "ran": true,
+	"move": true, "live": true, "believe": true, "hold": true, "held": true,
+	"bring": true, "brought": true, "happen": true, "write": true, "wrote": true,
+	"provide": true, "sit": true, "sat": true, "stand": true, "stood": true,
+	"lose": true, "lost": true, "pay": true, "meet": true, "met": true,
+	"include": true, "continue": true, "set": true, "learn": true,
+	"change": true, "lead": true, "led": true, "understand": true,
+	"watch": true, "follow": true, "stop": true, "create": true,
+	"read": true, "allow": true, "add": true, "spend": true, "spent": true,
+	"grow": true, "grew": true, "open": true, "walk": true, "win": true,
+	"offer": true, "remember": true, "love": true, "consider": true,
+	"appear": true, "buy": true, "bought": true, "wait": true, "serve": true,
+	"die": true, "send": true, "sent": true, "expect": true, "build": true,
+	"stay": true, "fall": true, "fell": true, "cut": true, "reach": true,
+	"kill": true, "remain": true, "suggest": true, "raise": true, "pass": true,
+	"sell": true, "sold": true, "require": true, "report": true, "decide": true,
+	"pull": true, "develop": true, "eat": true, "ate": true, "eaten": true,
+	"one": true, "two": true, "three": true, "four": true, "five": true,
+	"six": true, "seven": true, "eight": true, "nine": true, "ten": true,
+	"first": true, "second": true, "third": true, "last": true, "next": true,
+	"new": true, "old": true, "good": true, "great": true, "big": true,
+	"small": true, "long": true, "high": true, "little": true, "right": true,
+	"large": true, "young": true, "important": true, "different": true,
+	"able": true, "sure": true, "true": true, "possible": true, "full": true,
+	"special": true, "easy": true, "clear": true, "recent": true, "certain": true,
+	"personal": true, "hard": true, "real": true, "best": true, "better": true,
+	"part": true, "time": true, "year": true, "people": true, "way": true,
+	"day": true, "man": true, "woman": true, "child": true, "world": true,
+	"life": true, "hand": true, "place": true, "case": true, "week": true,
+	"point": true, "end": true, "area": true, "home": true, "thing": true,
+	"fact": true, "number": true, "group": true, "night": true, "water": true,
+	"room": true, "side": true, "kind": true, "head": true, "house": true,
+	"friend": true, "father": true, "mother": true, "power": true, "hour": true,
+	"game": true, "line": true, "member": true, "city": true, "name": true,
+	"car": true, "field": true, "book": true, "word": true, "idea": true,
+	"war": true, "music": true, "state": true, "country": true, "problem": true,
+}
+
+func isStopWord(word string) bool {
+	return defaultStopWords[strings.ToLower(word)]
+}
