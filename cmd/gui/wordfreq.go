@@ -21,7 +21,6 @@ import (
 )
 
 var wordRegex = regexp.MustCompile(`[a-zA-Z]+`)
-
 // WordFreqEntry represents one word and its frequency across all PDFs
 type WordFreqEntry struct {
 	Word     string   `json:"word"`
@@ -475,7 +474,7 @@ func getWordsAlreadyInAnki() (map[string]bool, error) {
 }
 
 // importWordsToAnki imports a list of words into Anki with concurrent translation
-func importWordsToAnki(words []string, cb *translateCallback) (int64, int64) {
+func importWordsToAnki(words []string, deckName string, cb *translateCallback) (int64, int64) {
 	if len(words) == 0 {
 		return 0, 0
 	}
@@ -503,7 +502,7 @@ func importWordsToAnki(words []string, cb *translateCallback) (int64, int64) {
 
 				front, back := generateAnkiCard(wordData)
 
-				err := addToAnkiViaConnect(wordData.Word, front, back)
+				err := addToAnkiViaConnect(wordData.Word, front, back, deckName)
 				if err != nil {
 					atomic.AddInt64(&failed, 1)
 					atomic.AddInt64(&done, 1)

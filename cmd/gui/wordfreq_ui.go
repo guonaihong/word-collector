@@ -25,7 +25,7 @@ type wordRow struct {
 
 func showWordFreqDialog() {
 	win := fyneApp.NewWindow("PDF 词频分析")
-	win.Resize(fyne.NewSize(620, 720))
+	win.Resize(fyne.NewSize(620, 760))
 
 	store := loadWordFreqStore()
 
@@ -48,6 +48,17 @@ func showWordFreqDialog() {
 
 	excludeAnkiCheck := widget.NewCheck("排除已在 Anki 的词", nil)
 	excludeAnkiCheck.SetChecked(true)
+
+	// --- Deck selector ---
+	deckSelect := widget.NewSelect([]string{}, nil)
+	deckSelect.PlaceHolder = "选择牌组..."
+	// Try to load deck names on open
+	if isAnkiConnectAvailable() {
+		if decks, err := fetchDeckNames(); err == nil && len(decks) > 0 {
+			deckSelect.Options = decks
+			deckSelect.SetSelected(ankiConfig.DeckName)
+		}
+	}
 
 	// --- Results section ---
 	var wordRows []*wordRow
@@ -270,6 +281,22 @@ func showWordFreqDialog() {
 			return
 		}
 
+		// Refresh deck list
+		decks, err := fetchDeckNames()
+		if err != nil || len(decks) == 0 {
+			dialog.ShowError(fmt.Errorf("获取牌组列表失败"), win)
+			return
+		}
+		deckSelect.Options = decks
+		if deckSelect.Selected == "" {
+			deckSelect.SetSelected(ankiConfig.DeckName)
+		}
+
+		selectedDeck := deckSelect.Selected
+		if selectedDeck == "" {
+			selectedDeck = ankiConfig.DeckName
+		}
+
 		// Collect checked words
 		var selected []string
 		for _, r := range wordRows {
@@ -292,6 +319,7 @@ func showWordFreqDialog() {
 		progressBar.SetValue(0)
 		logText.SetText("")
 
+		targetDeck := selectedDeck
 		cb := &translateCallback{
 			OnLog: appendLog,
 			OnProgress: func(current, total int64) {
@@ -313,9 +341,9 @@ func showWordFreqDialog() {
 			}()
 
 			startTime := time.Now()
-			statusLabel.SetText(fmt.Sprintf("正在导入 %d 个单词...", len(selected)))
+			statusLabel.SetText(fmt.Sprintf("正在导入 %d 个单词到 [%s]...", len(selected), targetDeck))
 
-			success, failed := importWordsToAnki(selected, cb)
+			success, failed := importWordsToAnki(selected, targetDeck, cb)
 			elapsed := time.Since(startTime).Round(time.Millisecond)
 
 			progressBar.SetValue(1)
@@ -362,7 +390,10 @@ func showWordFreqDialog() {
 		),
 		resultsScroll,
 		widget.NewSeparator(),
-		container.NewGridWithColumns(3, selectAllBtn, deselectAllBtn, importBtn),
+		container.NewGridWithColumns(2,
+			container.NewHBox(widget.NewLabel("导入到牌组:"), deckSelect),
+			container.NewHBox(selectAllBtn, deselectAllBtn, importBtn),
+		),
 		widget.NewSeparator(),
 		progressBar,
 		statusLabel,

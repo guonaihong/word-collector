@@ -236,7 +236,7 @@ func addWord(word string) {
 		return
 	}
 
-	err := addToAnkiViaConnect(wordData.Word, front, back)
+	err := addToAnkiViaConnect(wordData.Word, front, back, "")
 	if err != nil {
 		errMsg := err.Error()
 		if strings.Contains(errMsg, "duplicate") {
@@ -380,9 +380,13 @@ func isAnkiConnectAvailable() bool {
 	return resp.StatusCode == 200
 }
 
-func addToAnkiViaConnect(word, front, back string) error {
+func addToAnkiViaConnect(word, front, back, deckName string) error {
 	if !isAnkiConfigured() {
 		return fmt.Errorf("Anki not configured, please click ⚙ Settings")
+	}
+
+	if deckName == "" {
+		deckName = ankiConfig.DeckName
 	}
 
 	reqBody := map[string]any{
@@ -390,7 +394,7 @@ func addToAnkiViaConnect(word, front, back string) error {
 		"version": 6,
 		"params": map[string]any{
 			"note": map[string]any{
-				"deckName":  ankiConfig.DeckName,
+				"deckName":  deckName,
 				"modelName": ankiConfig.ModelName,
 				"fields":    map[string]string{ankiConfig.FrontField: front, ankiConfig.BackField: back},
 				"tags":      []string{AnkiTag},
