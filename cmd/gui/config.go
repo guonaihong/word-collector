@@ -16,6 +16,7 @@ type LLMModelConfig struct {
 	Endpoint string `json:"endpoint"` // API address
 	APIKey   string `json:"api_key"`  // API Key
 	Model    string `json:"model"`    // Model name
+	Provider string `json:"provider"` // "openai" (default) or "anthropic"
 }
 
 // AnkiConfig stores the user's Anki deck/model preferences and translation settings
@@ -56,6 +57,56 @@ func loadAnkiConfig() {
 			},
 		}
 		saveAnkiConfig()
+	}
+}
+
+// allLLMModels returns GUI-configured models + Claude backend from settings.json
+func allLLMModels() []LLMModelConfig {
+	models := make([]LLMModelConfig, len(ankiConfig.LLMModels))
+	copy(models, ankiConfig.LLMModels)
+	if claude := loadClaudeSettingsBackend(); claude != nil {
+		models = append(models, *claude)
+	}
+	return models
+}
+
+// loadClaudeSettingsBackend reads Claude config from ~/.claude/settings.json
+func loadClaudeSettingsBackend() *LLMModelConfig {
+	settingsPath := expandPath("~/.claude/settings.json")
+	data, err := os.ReadFile(settingsPath)
+	if err != nil {
+		return nil
+	}
+
+	var settings struct {
+		Env map[string]string `json:"env"`
+	}
+	if json.Unmarshal(data, &settings) != nil {
+		return nil
+	}
+
+	apiKey := settings.Env["ANTHROPIC_AUTH_TOKEN"]
+	if apiKey == "" {
+		return nil
+	}
+
+	endpoint := settings.Env["ANTHROPIC_BASE_URL"]
+	if endpoint == "" {
+		endpoint = "https://api.anthropic.com"
+	}
+
+	model := settings.Env["ANTHROPIC_MODEL"]
+	if model == "" {
+		model = "claude-sonnet-4-20250514"
+	}
+
+	fmt.Printf("📦 Loaded Claude backend from settings: endpoint=%s, model=%s\n", endpoint, model)
+	return &LLMModelConfig{
+		Name:     "Claude (env)",
+		Endpoint: endpoint,
+		APIKey:   apiKey,
+		Model:    model,
+		Provider: "anthropic",
 	}
 }
 

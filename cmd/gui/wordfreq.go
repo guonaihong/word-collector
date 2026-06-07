@@ -210,17 +210,124 @@ func extractTextViaOCR(path string, progressCB func(page, total int)) (string, i
 	return allText.String(), totalPages, nil
 }
 
+// ocrFailureTracker tracks consecutive failures per endpoint for circuit breaking
+type ocrFailureTracker struct {
+	mu        sync.Mutex
+	failures  map[string]int   // endpoint -> consecutive failure count
+	cooldown  map[string]time.Time // endpoint -> time until which it's blocked
+	window    int               // consecutive failures before blocking
+	blockDur  time.Duration     // how long to block after threshold
+}
+
+var ocrFailures = &ocrFailureTracker{
+	failures: make(map[string]int),
+	cooldown: make(map[string]time.Time),
+	window:   3,
+	blockDur: 5 * time.Minute,
+}
+
+// isBlocked returns true if the endpoint has too many recent failures
+func (t *ocrFailureTracker) isBlocked(endpoint string) bool {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if until, ok := t.cooldown[endpoint]; ok && time.Now().Before(until) {
+		return true
+	}
+	delete(t.cooldown, endpoint)
+	return false
+}
+
+// recordFailure increments failure count; blocks endpoint if threshold reached
+func (t *ocrFailureTracker) recordFailure(endpoint string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.failures[endpoint]++
+	if t.failures[endpoint] >= t.window {
+		t.cooldown[endpoint] = time.Now().Add(t.blockDur)
+		delete(t.failures, endpoint)
+		fmt.Printf("🔌 OCR endpoint blocked for %v: %s\n", t.blockDur, endpoint)
+	}
+}
+
+// recordSuccess clears failure count for the endpoint
+func (t *ocrFailureTracker) recordSuccess(endpoint string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	delete(t.failures, endpoint)
+	delete(t.cooldown, endpoint)
+}
+
 // ocrPage sends a page image to the vision model for OCR
 func ocrPage(imageData []byte) (string, error) {
-	endpoint := findOCREndpoint()
-	if endpoint == "" {
-		return "", fmt.Errorf("未找到可用的 OCR 模型，请启动 LM Studio 并加载 paddleocr-vl 模型")
+	// Try Claude/Anthropic vision API first (from ~/.claude/settings.json)
+	if claude := loadClaudeSettingsBackend(); claude != nil {
+		ep := claude.Endpoint
+		if !ocrFailures.isBlocked(ep) {
+			text, err := ocrPageAnthropic(imageData, claude)
+			if err == nil {
+				ocrFailures.recordSuccess(ep)
+				return text, nil
+			}
+			ocrFailures.recordFailure(ep)
+			fmt.Printf("⚠️  Claude OCR failed, trying next: %v\n", err)
+		}
 	}
 
+	// Try GUI-configured models with vision support
+	if ankiConfig != nil {
+		for _, m := range ankiConfig.LLMModels {
+			if m.Endpoint == "" || m.APIKey == "" || m.Model == "" {
+				continue
+			}
+			if ocrFailures.isBlocked(m.Endpoint) {
+				continue
+			}
+			if m.Provider == "anthropic" {
+				text, err := ocrPageAnthropic(imageData, &m)
+				if err == nil {
+					ocrFailures.recordSuccess(m.Endpoint)
+					return text, nil
+				}
+				ocrFailures.recordFailure(m.Endpoint)
+				fmt.Printf("⚠️  [%s] OCR failed: %v\n", m.Name, err)
+				continue
+			}
+			text, err := ocrPageOpenAI(imageData, m)
+			if err == nil {
+				ocrFailures.recordSuccess(m.Endpoint)
+				return text, nil
+			}
+			ocrFailures.recordFailure(m.Endpoint)
+			fmt.Printf("⚠️  [%s] OCR failed: %v\n", m.Name, err)
+		}
+	}
+
+	// Fallback: auto-discover LM Studio
+	endpoint := findLMStudioEndpoint()
+	if endpoint != "" && !ocrFailures.isBlocked(endpoint) {
+		text, err := ocrPageOpenAIEndpoint(imageData, endpoint, "paddleocr-vl@4bit")
+		if err == nil {
+			ocrFailures.recordSuccess(endpoint)
+			return text, nil
+		}
+		ocrFailures.recordFailure(endpoint)
+	}
+
+	return "", fmt.Errorf("未找到可用的 OCR 模型，请在 ~/.claude/settings.json 或设置中配置模型")
+}
+
+// ocrPageOpenAI sends a page image to an OpenAI-compatible vision model
+func ocrPageOpenAI(imageData []byte, cfg LLMModelConfig) (string, error) {
+	endpoint := strings.TrimRight(cfg.Endpoint, "/") + "/chat/completions"
+	return ocrPageOpenAIEndpoint(imageData, endpoint, cfg.Model)
+}
+
+// ocrPageOpenAIEndpoint sends a page image to an OpenAI-compatible vision endpoint
+func ocrPageOpenAIEndpoint(imageData []byte, endpoint, model string) (string, error) {
 	b64 := base64.StdEncoding.EncodeToString(imageData)
 
 	payload := map[string]any{
-		"model": "paddleocr-vl@4bit",
+		"model": model,
 		"messages": []map[string]any{
 			{
 				"role": "user",
@@ -277,18 +384,74 @@ func ocrPage(imageData []byte) (string, error) {
 	return strings.TrimSpace(content), nil
 }
 
-// findOCREndpoint finds an available LM Studio endpoint for OCR
-func findOCREndpoint() string {
-	// Try configured LLM endpoints first
-	if ankiConfig != nil {
-		for _, m := range ankiConfig.LLMModels {
-			if strings.Contains(m.Endpoint, "1234") || strings.Contains(m.Endpoint, "lmstudio") {
-				return m.Endpoint + "/chat/completions"
-			}
-		}
+// ocrPageAnthropic sends a page image to the Anthropic Messages API for OCR
+func ocrPageAnthropic(imageData []byte, cfg *LLMModelConfig) (string, error) {
+	endpoint := strings.TrimRight(cfg.Endpoint, "/") + "/v1/messages"
+	b64 := base64.StdEncoding.EncodeToString(imageData)
+
+	payload := map[string]any{
+		"model":      cfg.Model,
+		"max_tokens": 4096,
+		"messages": []map[string]any{
+			{
+				"role": "user",
+				"content": []map[string]any{
+					{
+						"type": "image",
+						"source": map[string]any{
+							"type":       "base64",
+							"media_type": "image/png",
+							"data":       b64,
+						},
+					},
+					{
+						"type": "text",
+						"text": "OCR all the English text in this image. Output only the extracted text, preserving the original text as much as possible. Do not add any explanation.",
+					},
+				},
+			},
+		},
 	}
 
-	// Try common LM Studio address
+	jsonBody, _ := json.Marshal(payload)
+	client := &http.Client{Timeout: 120 * time.Second}
+	req, err := http.NewRequest("POST", endpoint, bytes.NewReader(jsonBody))
+	if err != nil {
+		return "", fmt.Errorf("OCR request error: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("x-api-key", cfg.APIKey)
+	req.Header.Set("anthropic-version", "2023-06-01")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("OCR API 调用失败: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != 200 {
+		return "", fmt.Errorf("OCR API status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var result struct {
+		Content []struct {
+			Text string `json:"text"`
+		} `json:"content"`
+	}
+	if err := json.Unmarshal(body, &result); err != nil {
+		return "", fmt.Errorf("解析 OCR 响应失败: %w", err)
+	}
+	if len(result.Content) == 0 || result.Content[0].Text == "" {
+		return "", fmt.Errorf("OCR 无返回结果")
+	}
+
+	content := stripThinkTags(result.Content[0].Text)
+	return strings.TrimSpace(content), nil
+}
+
+// findLMStudioEndpoint auto-discovers a running LM Studio instance
+func findLMStudioEndpoint() string {
 	endpoints := []string{
 		"http://localhost:1234/v1/chat/completions",
 		"http://127.0.0.1:1234/v1/chat/completions",
@@ -478,6 +641,8 @@ func importWordsToAnki(words []string, deckName string, cb *translateCallback) (
 	if len(words) == 0 {
 		return 0, 0
 	}
+
+	invalidateAnkiCache()
 
 	var success, failed, done int64
 	var mu sync.Mutex

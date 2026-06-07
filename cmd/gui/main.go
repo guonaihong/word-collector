@@ -248,6 +248,7 @@ func addWord(word string) {
 		return
 	}
 
+	invalidateAnkiCache()
 	showNotification("✅ "+wordData.Word, preview)
 }
 

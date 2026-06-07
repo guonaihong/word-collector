@@ -159,6 +159,7 @@ type modelConfigRow struct {
 	endpointEntry *widget.Entry
 	apiKeyEntry   *widget.Entry
 	modelEntry    *widget.Entry
+	providerEntry *widget.Select
 	container     *fyne.Container
 }
 
@@ -332,6 +333,7 @@ func buildTranslateTab(win fyne.Window) fyne.CanvasObject {
 					Endpoint: row.endpointEntry.Text,
 					APIKey:   row.apiKeyEntry.Text,
 					Model:    row.modelEntry.Text,
+					Provider: row.providerEntry.Selected,
 				})
 			}
 			if len(models) == 0 {
@@ -342,7 +344,7 @@ func buildTranslateTab(win fyne.Window) fyne.CanvasObject {
 		}
 
 		saveAnkiConfig()
-		fmt.Printf("✅ Translation config saved: source=%s, models=%d\n", ankiConfig.TranslateSource, len(ankiConfig.LLMModels))
+		fmt.Printf("â Translation config saved: source=%s, models=%d\n", ankiConfig.TranslateSource, len(ankiConfig.LLMModels))
 		showNotification("Word Collector", "翻译配置已保存: "+selected)
 	})
 	saveBtn.Importance = widget.HighImportance
